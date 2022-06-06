@@ -4,12 +4,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"os"
 )
 
 type Credential struct {
 	awsProfile string
 	awsConfig  *aws.Credentials
 }
+
+const (
+	defaultProfile = "default"
+)
 
 var (
 	rootCmd = &cobra.Command{
@@ -18,8 +24,8 @@ var (
 		Long:  "mcl is interactive CLI that select AWS Service or Auth Service",
 	}
 
-	_version    string
-	_credential Credential
+	version    string
+	credential Credential
 )
 
 func Execute(version string) {
@@ -37,9 +43,17 @@ func Execute(version string) {
 }
 
 func checkConfig() {
-	//home, err := homedir.Dir()
-	//err = errors.New("Invalid")
-	//if err != nil {
-	//	internal.RealPanic(internal.WrapError(err))
-	//}
+	credential = &Credential{}
+
+	awsProfile := viper.GetString("profile")
+	if awsProfile == "" {
+		if os.Getenv("AWS_PROFILE") != "" {
+			awsProfile = os.Getenv("AWS_PROFILE")
+		} else {
+			awsProfile = defaultProfile
+		}
+	}
+	credential.awsProfile = awsProfile
+
+	awsRegion := viper.GetString("region")
 }

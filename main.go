@@ -7,6 +7,5 @@ import (
 var mclVersion string
 
 func main() {
-
 	cmd.Execute(mclVersion)
 }
