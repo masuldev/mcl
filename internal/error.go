@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/masuldev/merrwrap"
@@ -25,3 +26,7 @@ func WrapError(err error) error {
 	}
 	return nil
 }
+
+var (
+	ErrInvalidParam = errors.New("err: invalid params")
+)
