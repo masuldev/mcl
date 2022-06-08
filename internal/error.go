@@ -22,7 +22,7 @@ func WrapError(err error) error {
 		details := strings.Split(fn, "/")
 		fn = details[len(details)-1]
 		wrapError := merrwrap.Error(err)
-		return wrapError.Wrap(fmt.Errorf("err:[%s:%d]", fn, line))
+		return wrapError.Wrap(fmt.Errorf("[%s:%d]", fn, line))
 	}
 	return nil
 }

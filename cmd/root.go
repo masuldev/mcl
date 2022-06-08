@@ -30,7 +30,7 @@ var (
 	}
 
 	version                 string
-	credential              Credential
+	credential              *Credential
 	credentialWithTemporary = fmt.Sprintf("%s_temporary", config.DefaultSharedCredentialsFilename())
 )
 
@@ -49,7 +49,7 @@ func Execute(version string) {
 }
 
 func checkConfig() {
-	credential = Credential{}
+	credential = &Credential{}
 
 	awsProfile := viper.GetString("profile")
 	if awsProfile == "" {
@@ -62,12 +62,6 @@ func checkConfig() {
 	credential.awsProfile = awsProfile
 
 	awsRegion := viper.GetString("region")
-
-	//args := os.Args[1:]
-	//subcmd, _, err := rootCmd.Find(args)
-	//if err != nil {
-	//	internal.RealPanic(internal.WrapError(err))
-	//}
 
 	var err error
 
@@ -115,7 +109,9 @@ func checkConfig() {
 			}
 		}
 
-		temporaryCredentialsString := fmt.Sprintf(credential.awsProfile, temporaryCredentials.AccessKeyID, temporaryCredentials.SecretAccessKey, temporaryCredentials.SessionToken)
+		var mfaCredentialFormat = "[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n"
+
+		temporaryCredentialsString := fmt.Sprintf(mfaCredentialFormat, credential.awsProfile, temporaryCredentials.AccessKeyID, temporaryCredentials.SecretAccessKey, temporaryCredentials.SessionToken)
 		if err := ioutil.WriteFile(credentialWithTemporary, []byte(temporaryCredentialsString), 0600); err != nil {
 			internal.RealPanic(internal.WrapError(err))
 		}

@@ -42,3 +42,12 @@ release:
   github:
     owner: masuldev
     name: mcl
+brews:
+  - name: mcl
+    tap:
+      owner: masuldev
+      name: homebrew-mcl
+    commit_author:
+      name: masuldev
+      email: kimmoimm@gmail.com
+    description: "mcl is interactive CLI"

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -24,7 +23,6 @@ var (
 			argTarget := strings.TrimSpace(viper.GetString("ec2-target"))
 			if argTarget != "" {
 				table, err := internal.FindInstance(ctx, *credential.awsConfig)
-				fmt.Println(credential.awsConfig.Region)
 				if err != nil {
 					internal.RealPanic(internal.WrapError(err))
 				}
@@ -43,7 +41,7 @@ var (
 				}
 			}
 
-			internal.PrintReady("ec2", credential.awsConfig.Region, target.Name)
+			internal.PrintReady("ec2", credential.awsConfig.Region, target.Name, target.PublicIp, target.PrivateIp)
 		},
 	}
 )

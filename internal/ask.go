@@ -178,8 +178,6 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 		}
 	)
 
-	fmt.Println(cfg.Region)
-
 	output, err := client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{MaxResults: aws.Int32(maxOutputResults)})
 	if err != nil {
 		return nil, err
@@ -209,6 +207,6 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 	return instances, nil
 }
 
-func PrintReady(cmd, region, target string) {
-	fmt.Printf("[%s] region: %s, target: %s\n", color.GreenString(cmd), color.YellowString(region), color.YellowString(target))
+func PrintReady(cmd, region, target, publicIp, privateIp string) {
+	fmt.Printf("%s: region: %s, target: %s, publicIp: %s, privateIp: %s\n", color.GreenString(cmd), color.YellowString(region), color.YellowString(target), color.BlueString(publicIp), color.BlueString(privateIp))
 }
