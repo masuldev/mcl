@@ -11,8 +11,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.6
 	github.com/fatih/color v1.13.0
 	github.com/masuldev/merrwrap v0.0.0-20220531164747-38751a985b00
+	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.12.0
+	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
 )
 
 require (

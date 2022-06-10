@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	maxOutputResults = 50
+	maxOutputResults = 30
 )
 
 var (
@@ -24,6 +24,10 @@ var (
 		"me-south-1",
 		"sa-east-1",
 		"us-east-1", "us-east-2", "us-west-1", "us-west-2",
+	}
+
+	defaultCertificateTime = []string{
+		"5m", "10m", "30m", "60m", "3h", "6h", "12h",
 	}
 )
 
@@ -46,7 +50,27 @@ type (
 		Remote string
 		Local  string
 	}
+
+	Time struct {
+		Name string
+	}
 )
+
+func AskTime() (*Time, error) {
+	var time string
+
+	prompt := &survey.Select{
+		Message: "Choose a time for Certificate Duration",
+		Options: defaultCertificateTime,
+	}
+
+	if err := survey.AskOne(prompt, &time, survey.WithIcons(func(icons *survey.IconSet) {
+		icons.SelectFocus.Format = "green+hb"
+	}), survey.WithPageSize(20)); err != nil {
+		return nil, err
+	}
+	return &Time{Name: time}, nil
+}
 
 func AskTarget(ctx context.Context, cfg aws.Config) (*Target, error) {
 	table, err := FindInstance(ctx, cfg)
