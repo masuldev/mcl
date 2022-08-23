@@ -41,7 +41,6 @@ func GetCertificate(publicKey []byte, time string) ([]byte, error) {
 
 	var res responseCertificateForm
 	json.NewDecoder(response.Body).Decode(&res)
-	fmt.Println(res.Certificate)
 
 	return res.Certificate, nil
 }
