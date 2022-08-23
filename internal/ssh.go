@@ -7,8 +7,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"github.com/mitchellh/go-homedir"
-	"io/ioutil"
 	"log"
+	"os"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -89,7 +89,7 @@ func generatePublicKey(privateKey *rsa.PublicKey) (ssh.PublicKey, []byte, error)
 }
 
 func writeKeyToFile(keyBytes []byte, saveFileTo string) error {
-	err := ioutil.WriteFile(saveFileTo, keyBytes, 0600)
+	err := os.WriteFile(saveFileTo, keyBytes, 0600)
 	if err != nil {
 		return err
 	}

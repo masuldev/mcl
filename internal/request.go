@@ -9,7 +9,7 @@ import (
 
 const (
 	devUrl  = "http://localhost:11111/api/v1"
-	prodUrl = "?"
+	prodUrl = "http://EQNS-Dev-mcls-1402262411.ap-northeast-2.elb.amazonaws.com/api/v1"
 )
 
 type requestCertificateForm struct {
@@ -33,7 +33,7 @@ func GetCertificate(publicKey []byte, time string) ([]byte, error) {
 	}
 
 	path := "auth"
-	url := fmt.Sprintf("%s/%s", devUrl, path)
+	url := fmt.Sprintf("%s/%s", prodUrl, path)
 	response, err := http.Post(url, "application/json", bytes.NewBuffer(requestCertificateByte))
 	if err != nil {
 		return nil, err
@@ -41,6 +41,7 @@ func GetCertificate(publicKey []byte, time string) ([]byte, error) {
 
 	var res responseCertificateForm
 	json.NewDecoder(response.Body).Decode(&res)
+	fmt.Println(res.Certificate)
 
 	return res.Certificate, nil
 }
