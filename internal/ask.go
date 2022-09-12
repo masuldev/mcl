@@ -33,6 +33,7 @@ var (
 
 type (
 	Target struct {
+		Id        string
 		Name      string
 		PublicIp  string
 		PrivateIp string
@@ -152,7 +153,8 @@ func FindInstance(ctx context.Context, cfg aws.Config) (map[string]*Target, erro
 						}
 					}
 					table[fmt.Sprintf("%s\t(%s)", name, *instance.InstanceId)] = &Target{
-						Name:      aws.ToString(instance.InstanceId),
+						Id:        aws.ToString(instance.InstanceId),
+						Name:      name,
 						PublicIp:  aws.ToString(instance.PublicIpAddress),
 						PrivateIp: aws.ToString(instance.PrivateIpAddress),
 					}
@@ -231,6 +233,6 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 	return instances, nil
 }
 
-func PrintReady(cmd, region, target, publicIp, privateIp string) {
-	fmt.Printf("%s: region: %s, target: %s, publicIp: %s, privateIp: %s\n", color.GreenString(cmd), color.YellowString(region), color.YellowString(target), color.BlueString(publicIp), color.BlueString(privateIp))
+func PrintReady(cmd, region, name, id, publicIp, privateIp string) {
+	fmt.Printf("%s: region: %s, name: %s, id: %s, publicIp: %s, privateIp: %s\n", color.CyanString(cmd), color.YellowString(region), color.YellowString(name), color.YellowString(id), color.BlueString(publicIp), color.BlueString(privateIp))
 }

@@ -27,7 +27,7 @@ var (
 					internal.RealPanic(internal.WrapError(err))
 				}
 				for _, t := range table {
-					if t.Name == argTarget {
+					if t.Id == argTarget {
 						target = t
 						break
 					}
@@ -41,7 +41,7 @@ var (
 				}
 			}
 
-			internal.PrintReady("ec2", credential.awsConfig.Region, target.Name, target.PublicIp, target.PrivateIp)
+			internal.PrintReady("ec2", credential.awsConfig.Region, target.Name, target.Id, target.PublicIp, target.PrivateIp)
 		},
 	}
 )
