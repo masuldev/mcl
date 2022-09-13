@@ -231,6 +231,27 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 	return instances, nil
 }
 
+func FindInstanceByRole(ctx context.Context, cfg aws.Config) (map[string]*Target, error) {
+	var (
+		client     = ec2.NewFromConfig(cfg)
+		table      = make(map[string]*Target)
+		outputFunc = func(table map[string]*Target, output *ec2.DescribeInstancesOutput) {
+			for _, reservation := range output.Reservations {
+				for _, instance := range reservation.Instances {
+					name := ""
+					for _, tag := range instance.Tags {
+						if aws.ToString(tag.Key) == "Name" {
+							name = aws.ToString(tag.Value)
+							break
+						}
+					}
+					table[fmt.Sprintf()]
+				}
+			}
+		}
+	)
+}
+
 func PrintReady(cmd, region, target, publicIp, privateIp string) {
 	fmt.Printf("%s: region: %s, target: %s, publicIp: %s, privateIp: %s\n", color.GreenString(cmd), color.YellowString(region), color.YellowString(target), color.BlueString(publicIp), color.BlueString(privateIp))
 }
