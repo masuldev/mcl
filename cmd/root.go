@@ -136,8 +136,7 @@ func checkConfig() {
 		}
 		credential.awsConfig.Region = askRegion.Name
 	}
-	color.Green("region (%s)", credential.awsConfig.Region)
-
+	color.Cyan("region: %s", credential.awsConfig.Region)
 }
 
 func init() {
