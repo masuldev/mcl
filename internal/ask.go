@@ -37,6 +37,7 @@ type (
 		Name      string
 		PublicIp  string
 		PrivateIp string
+		Group     string
 	}
 
 	User struct {
@@ -146,17 +147,27 @@ func FindInstance(ctx context.Context, cfg aws.Config) (map[string]*Target, erro
 			for _, reservation := range output.Reservations {
 				for _, instance := range reservation.Instances {
 					name := ""
+					group := ""
 					for _, tag := range instance.Tags {
 						if aws.ToString(tag.Key) == "Name" {
 							name = aws.ToString(tag.Value)
 							break
 						}
 					}
+
+					for _, tag := range instance.Tags {
+						if aws.ToString(tag.Key) == "Server-Group" {
+							group = aws.ToString(tag.Value)
+							break
+						}
+					}
+
 					table[fmt.Sprintf("%s\t(%s)", name, *instance.InstanceId)] = &Target{
 						Id:        aws.ToString(instance.InstanceId),
 						Name:      name,
 						PublicIp:  aws.ToString(instance.PublicIpAddress),
 						PrivateIp: aws.ToString(instance.PrivateIpAddress),
+						Group:     group,
 					}
 				}
 			}
@@ -231,27 +242,6 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 		}
 	}
 	return instances, nil
-}
-
-func FindInstanceByRole(ctx context.Context, cfg aws.Config) (map[string]*Target, error) {
-	var (
-		client     = ec2.NewFromConfig(cfg)
-		table      = make(map[string]*Target)
-		outputFunc = func(table map[string]*Target, output *ec2.DescribeInstancesOutput) {
-			for _, reservation := range output.Reservations {
-				for _, instance := range reservation.Instances {
-					name := ""
-					for _, tag := range instance.Tags {
-						if aws.ToString(tag.Key) == "Name" {
-							name = aws.ToString(tag.Value)
-							break
-						}
-					}
-					table[fmt.Sprintf()]
-				}
-			}
-		}
-	)
 }
 
 func PrintReady(cmd, region, name, id, publicIp, privateIp string) {

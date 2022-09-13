@@ -34,15 +34,18 @@ var (
 				}
 			}
 
-			argRole := strings.TrimSpace(viper.GetString("ec2-role"))
-			if argRole != "" {
+			argGroup := strings.TrimSpace(viper.GetString("ec2-group"))
+			if argGroup != "" {
 				table, err := internal.FindInstance(ctx, *credential.awsConfig)
 				if err != nil {
 					internal.RealPanic(internal.WrapError(err))
 				}
 
 				for _, t := range table {
-
+					if t.Group == argGroup {
+						target = t
+						break
+					}
 				}
 			}
 
@@ -60,9 +63,9 @@ var (
 
 func init() {
 	startEc2Command.Flags().StringP("target", "t", "", "ec2 instanceId")
-	startEc2Command.Flags().StringP("role", "r", "", "ec2 instance server role")
+	startEc2Command.Flags().StringP("group", "g", "", "ec2 instance server group")
 	viper.BindPFlag("ec2-target", startEc2Command.Flags().Lookup("target"))
-	viper.BindPFlag("ec2-role", startEc2Command.Flags().Lookup("role"))
+	viper.BindPFlag("ec2-group", startEc2Command.Flags().Lookup("group"))
 
 	rootCmd.AddCommand(startEc2Command)
 }
