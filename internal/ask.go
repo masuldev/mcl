@@ -47,6 +47,10 @@ type (
 	Time struct {
 		Name string
 	}
+
+	Function struct {
+		Name string
+	}
 )
 
 func AskTime() (*Time, error) {
@@ -128,6 +132,24 @@ func AskRegion(ctx context.Context, cfg aws.Config) (*Region, error) {
 	}
 
 	return &Region{Name: region}, nil
+}
+
+func AskVolume(ctx context.Context, cfg aws.Config) (*Function, error) {
+	functions := []string{"Check", "Expansion"}
+
+	var function string
+	prompt := &survey.Select{
+		Message: "Choose a function: ",
+		Options: functions,
+	}
+
+	if err := survey.AskOne(prompt, &function, survey.WithIcons(func(icons *survey.IconSet) {
+		icons.SelectFocus.Format = "green+hb"
+	}), survey.WithPageSize(2)); err != nil {
+		return nil, err
+	}
+
+	return &Function{Name: function}, nil
 }
 
 func PrintReady(cmd, region, name, id, publicIp, privateIp string) {
