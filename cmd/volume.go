@@ -2,8 +2,17 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh"
+	"sync"
+	"time"
+)
+
+const (
+	ThresholdPercentage = 80
+	IncrementPercentage = 30
 )
 
 var (
@@ -23,7 +32,7 @@ var (
 			//if err != nil {
 			//	internal.RealPanic(internal.WrapError(err))
 			//}
-			volumes, err := internal.GetVolumes(ctx, *credential.awsConfig)
+			instances, err := internal.FindInstance(ctx, *credential.awsConfig)
 			if err != nil {
 				internal.RealPanic(internal.WrapError(err))
 			}
@@ -33,26 +42,34 @@ var (
 				internal.RealPanic(internal.WrapError(err))
 			}
 
-			for _, volume := range volumes {
-				if len(volume.Attachments) > 0 {
-					id := *volume.Attachments[0].InstanceId
-					var targetIp string
-					table, err := internal.FindInstance(ctx, *credential.awsConfig)
+			bastionClient, err := internal.ConnectionBastion(bastion.PublicIp, bastion.KeyName)
+
+			var wg sync.WaitGroup
+
+			mu := &sync.Mutex{}
+			var instanceIds []string
+
+			semaphore := make(chan struct{}, 20)
+			for _, instance := range instances {
+				wg.Add(1)
+				go func(instance *internal.Target) {
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					defer wg.Done()
+
+					usage, err := internal.ExecuteWithTimeout(func(bastion *ssh.Client, target *internal.Target) (*internal.VolumeUsage, error) {
+						return internal.GetVolumeUsage(bastion, target)
+					}, 10*time.Second, bastionClient, instance)
 					if err != nil {
-						internal.RealPanic(internal.WrapError(err))
+						fmt.Println(internal.WrapError(err))
 					}
-					for _, t := range table {
-						if t.Id == id {
-							targetIp = t.PrivateIp
-							break
-						}
+
+					if (usage != nil) && (usage.Usage > ThresholdPercentage) {
 					}
-					err = internal.GetVolumeUsage(bastion.PublicIp, targetIp)
-					if err != nil {
-						internal.RealPanic(internal.WrapError(err))
-					}
-				}
+				}(instance)
 			}
+			wg.Wait()
+
 		},
 	}
 )

@@ -15,6 +15,7 @@ type (
 		PublicIp  string
 		PrivateIp string
 		Group     string
+		KeyName   string
 	}
 )
 
@@ -47,6 +48,7 @@ func FindInstance(ctx context.Context, cfg aws.Config) (map[string]*Target, erro
 						PublicIp:  aws.ToString(instance.PublicIpAddress),
 						PrivateIp: aws.ToString(instance.PrivateIpAddress),
 						Group:     group,
+						KeyName:   aws.ToString(instance.KeyName),
 					}
 				}
 			}

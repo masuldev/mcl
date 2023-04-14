@@ -21,12 +21,69 @@ func CheckVolume() {
 	// 완료되면 작업한 애들 목록 내보냄
 }
 
-func GetVolumes(ctx context.Context, cfg aws.Config) ([]types.Volume, error) {
+type (
+	TargetVolume struct {
+		Id         string
+		Size       int32
+		InstanceId string
+		Device     string
+	}
+)
+
+func FindVolume(ctx context.Context, cfg aws.Config, instanceId string) (*TargetVolume, error) {
 	var (
-		volumes    []types.Volume
+		client       = ec2.NewFromConfig(cfg)
+		targetVolume *TargetVolume
+		outputFunc   = func(targetVolume *TargetVolume, output *ec2.DescribeVolumesOutput) {
+			for _, volume := range output.Volumes {
+				if len(volume.Attachments) > 0 {
+					if aws.ToString(volume.Attachments[0].InstanceId) == instanceId {
+						targetVolume = &TargetVolume{
+							Id:         aws.ToString(volume.Attachments[0].VolumeId),
+							Size:       aws.ToInt32(volume.Size),
+							InstanceId: aws.ToString(volume.Attachments[0].InstanceId),
+							Device:     aws.ToString(volume.Attachments[0].Device),
+						}
+					}
+				}
+			}
+		}
+	)
+
+	volumes, err := FindVolumes(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	for len(volumes) > 0 {
+		max := len(volumes)
+
+		if max >= 200 {
+			max = 199
+		}
+		output, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
+			Filters: []types.Filter{
+				{Name: aws.String("volume-id"), Values: volumes[:max]},
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		outputFunc(targetVolume, output)
+		volumes = volumes[max:]
+	}
+	return targetVolume, nil
+}
+
+func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
+	var (
+		volumes    []string
 		client     = ec2.NewFromConfig(cfg)
-		outputFunc = func(volumes []types.Volume, output *ec2.DescribeVolumesOutput) []types.Volume {
-			volumes = append(volumes, output.Volumes...)
+		outputFunc = func(volumes []string, output *ec2.DescribeVolumesOutput) []string {
+			for _, volume := range output.Volumes {
+				volumes = append(volumes, aws.ToString(volume.VolumeId))
+			}
 			return volumes
 		}
 	)
