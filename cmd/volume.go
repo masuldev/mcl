@@ -15,6 +15,13 @@ const (
 	IncrementPercentage = 30
 )
 
+type (
+	VolumeInstanceMapping struct {
+		Instance *internal.Target
+		Volume   *internal.TargetVolume
+	}
+)
+
 var (
 	startVolumeCommand = &cobra.Command{
 		Use:   "volume",
@@ -57,7 +64,7 @@ var (
 					defer func() { <-semaphore }()
 					defer wg.Done()
 
-					usage, err := internal.ExecuteWithTimeout(func(bastion *ssh.Client, target *internal.Target) (*internal.VolumeUsage, error) {
+					usage, err := internal.GetVolumeUsageWithTimeout(func(bastion *ssh.Client, target *internal.Target) (*internal.VolumeUsage, error) {
 						return internal.GetVolumeUsage(bastion, target)
 					}, 10*time.Second, bastionClient, instance)
 					if err != nil {
@@ -65,11 +72,58 @@ var (
 					}
 
 					if (usage != nil) && (usage.Usage > ThresholdPercentage) {
+						mu.Lock()
+						instanceIds = append(instanceIds, usage.InstanceId)
+						mu.Unlock()
 					}
 				}(instance)
 			}
 			wg.Wait()
 
+			volumes, err := internal.FindVolume(ctx, *credential.awsConfig, instanceIds)
+			if err != nil {
+				internal.RealPanic(internal.WrapError(err))
+			}
+
+			expandedVolumes, err := internal.ExpandVolume(ctx, *credential.awsConfig, volumes, IncrementPercentage)
+			if err != nil {
+				internal.RealPanic(internal.WrapError(err))
+			}
+
+			var volumeInstanceMappings []*VolumeInstanceMapping
+			for _, expandedVolume := range expandedVolumes {
+				for _, instance := range instances {
+					if expandedVolume.InstanceId == instance.Id {
+						volumeInstanceMappings = append(volumeInstanceMappings, &VolumeInstanceMapping{
+							Volume:   expandedVolume,
+							Instance: instance,
+						})
+					}
+				}
+			}
+
+			var expandedInstances []string
+			for _, volumeInstanceMapping := range volumeInstanceMappings {
+				wg.Add(1)
+				go func(volumeInstanceMapping *VolumeInstanceMapping) {
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					defer wg.Done()
+
+					expandedInstance, err := internal.ModifyLinuxVolumeWithTimeout(func(bastion *ssh.Client, volume *internal.TargetVolume, instance *internal.Target) (string, error) {
+						return internal.ModifyLinuxVolume(bastion, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
+					}, 10*time.Second, bastionClient, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
+					if err != nil {
+						fmt.Println(internal.WrapError(err))
+					}
+
+					expandedInstances = append(expandedInstances, expandedInstance)
+
+				}(volumeInstanceMapping)
+			}
+			wg.Wait()
+
+			fmt.Println(expandedInstances)
 		},
 	}
 )

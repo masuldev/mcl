@@ -2,9 +2,11 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"time"
 )
 
 type (
@@ -30,19 +32,21 @@ type (
 	}
 )
 
-func FindVolume(ctx context.Context, cfg aws.Config, instanceId string) (*TargetVolume, error) {
+func FindVolume(ctx context.Context, cfg aws.Config, instanceIds []string) (map[string]*TargetVolume, error) {
 	var (
-		client       = ec2.NewFromConfig(cfg)
-		targetVolume *TargetVolume
-		outputFunc   = func(targetVolume *TargetVolume, output *ec2.DescribeVolumesOutput) {
+		client     = ec2.NewFromConfig(cfg)
+		table      = make(map[string]*TargetVolume)
+		outputFunc = func(table map[string]*TargetVolume, output *ec2.DescribeVolumesOutput) {
 			for _, volume := range output.Volumes {
 				if len(volume.Attachments) > 0 {
-					if aws.ToString(volume.Attachments[0].InstanceId) == instanceId {
-						targetVolume = &TargetVolume{
-							Id:         aws.ToString(volume.Attachments[0].VolumeId),
-							Size:       aws.ToInt32(volume.Size),
-							InstanceId: aws.ToString(volume.Attachments[0].InstanceId),
-							Device:     aws.ToString(volume.Attachments[0].Device),
+					for _, instanceId := range instanceIds {
+						if aws.ToString(volume.Attachments[0].InstanceId) == instanceId {
+							table[fmt.Sprintf("%s\t", instanceId)] = &TargetVolume{
+								Id:         aws.ToString(volume.Attachments[0].VolumeId),
+								Size:       aws.ToInt32(volume.Size),
+								InstanceId: aws.ToString(volume.Attachments[0].InstanceId),
+								Device:     aws.ToString(volume.Attachments[0].Device),
+							}
 						}
 					}
 				}
@@ -70,10 +74,10 @@ func FindVolume(ctx context.Context, cfg aws.Config, instanceId string) (*Target
 			return nil, err
 		}
 
-		outputFunc(targetVolume, output)
+		outputFunc(table, output)
 		volumes = volumes[max:]
 	}
-	return targetVolume, nil
+	return table, nil
 }
 
 func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
@@ -117,4 +121,62 @@ func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
 	}
 
 	return volumes, nil
+}
+
+func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) ([]*TargetVolume, error) {
+	var (
+		expandedVolumes []*TargetVolume
+		client          = ec2.NewFromConfig(cfg)
+	)
+
+	for _, volume := range volumes {
+		currentSize := volume.Size
+		newSize := int64(float64(currentSize) * (1 + float64(incrementPercentage)/100))
+
+		modifyVolumeInput := &ec2.ModifyVolumeInput{
+			VolumeId: aws.String(volume.Id),
+			Size:     aws.Int32(int32(newSize)),
+		}
+
+		_, err := client.ModifyVolume(ctx, modifyVolumeInput)
+		if err != nil {
+			return nil, fmt.Errorf("error modifying volume size: %v", err)
+		}
+
+		err = waitUntilVolumeAvailable(ctx, client, volume.Id)
+		if err != nil {
+			return nil, fmt.Errorf("error waiting for volume to be available: %v", err)
+		}
+
+		expandedVolumes = append(expandedVolumes, volume)
+	}
+
+	return expandedVolumes, nil
+}
+
+func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId string) error {
+	var (
+		describeVolumesModificationsInput = &ec2.DescribeVolumesModificationsInput{
+			VolumeIds: []string{volumeId},
+		}
+	)
+
+	for {
+		output, err := client.DescribeVolumesModifications(ctx, describeVolumesModificationsInput)
+		if err != nil {
+			return fmt.Errorf("error describing volume: %v", err)
+		}
+
+		if len(output.VolumesModifications) > 0 {
+			fmt.Println(output.VolumesModifications[0].ModificationState)
+			if output.VolumesModifications[0].ModificationState == types.VolumeModificationStateOptimizing {
+				fmt.Println(output.VolumesModifications[0].ModificationState)
+				break
+			}
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	return nil
 }
