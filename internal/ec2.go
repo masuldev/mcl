@@ -6,6 +6,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"golang.org/x/crypto/ssh"
+	"sync"
+	"time"
 )
 
 type (
@@ -123,4 +126,38 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 		}
 	}
 	return instances, nil
+}
+
+func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.Client, thresholdPercentage int) ([]string, map[string]int, error) {
+	var instanceIds []string
+	instanceIdUsageMapping := make(map[string]int)
+	var wg sync.WaitGroup
+	mu := &sync.Mutex{}
+	semaphore := make(chan struct{}, 20)
+
+	for _, instance := range instances {
+		wg.Add(1)
+		go func(instance *Target) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			usage, err := GetVolumeUsageWithTimeout(func(bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
+				return GetVolumeUsage(bastion, target)
+			}, 10*time.Second, bastionClient, instance)
+			if err != nil {
+				PrintError(WrapError(fmt.Errorf("cannot get volume usage %s, instance id: %s", err, instance.Id)))
+			}
+
+			if (usage != nil) && (usage.Usage > thresholdPercentage) {
+				mu.Lock()
+				instanceIds = append(instanceIds, usage.InstanceId)
+				instanceIdUsageMapping[usage.InstanceId] = usage.Usage
+				mu.Unlock()
+			}
+		}(instance)
+	}
+	wg.Wait()
+
+	return instanceIds, instanceIdUsageMapping, nil
 }

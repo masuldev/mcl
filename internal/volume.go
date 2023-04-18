@@ -6,29 +6,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"golang.org/x/crypto/ssh"
+	"sync"
 	"time"
 )
-
-type (
-	VolumeTarget struct {
-	}
-)
-
-func CheckVolume() {
-	// 볼륨을 전부 가져옴
-	// 볼륨에 연결되어 있는 인스턴스에 사용량 조회
-	// 볼륨에 연결되어 있는 인스턴스의 연결해야하는데 private ip만 있을 경우 bastion 호스트 선택창을 띄워줌
-	// bastion 호스트를 선택 한 경우 bastion 호스트를 통해 사용량 조회에 들어감
-	// 사용량이 일정이상 넘어가면 용량 증설
-	// 완료되면 작업한 애들 목록 내보냄
-}
 
 type (
 	TargetVolume struct {
 		Id         string
 		Size       int32
+		NewSize    int64
 		InstanceId string
 		Device     string
+	}
+
+	VolumeInstanceMapping struct {
+		Instance *Target
+		Volume   *TargetVolume
 	}
 )
 
@@ -148,6 +142,7 @@ func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*Targe
 			return nil, fmt.Errorf("error waiting for volume to be available: %v", err)
 		}
 
+		volume.NewSize = newSize
 		expandedVolumes = append(expandedVolumes, volume)
 	}
 
@@ -168,9 +163,7 @@ func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId 
 		}
 
 		if len(output.VolumesModifications) > 0 {
-			fmt.Println(output.VolumesModifications[0].ModificationState)
 			if output.VolumesModifications[0].ModificationState == types.VolumeModificationStateOptimizing {
-				fmt.Println(output.VolumesModifications[0].ModificationState)
 				break
 			}
 		}
@@ -179,4 +172,53 @@ func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId 
 	}
 
 	return nil
+}
+
+func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances map[string]*Target, instanceIds []string, incrementPercentage int, bastionClient *ssh.Client) ([]VolumeInstanceMapping, error) {
+	volumes, err := FindVolume(ctx, awsConfig, instanceIds)
+	if err != nil {
+		return nil, WrapError(err)
+	}
+
+	expandedVolumes, err := ExpandVolume(ctx, awsConfig, volumes, incrementPercentage)
+	if err != nil {
+		return nil, WrapError(err)
+	}
+
+	var volumeInstanceMappings []*VolumeInstanceMapping
+	for _, expandedVolume := range expandedVolumes {
+		for _, instance := range instances {
+			if expandedVolume.InstanceId == instance.Id {
+				volumeInstanceMappings = append(volumeInstanceMappings, &VolumeInstanceMapping{
+					Volume:   expandedVolume,
+					Instance: instance,
+				})
+			}
+		}
+	}
+
+	var volumeInstances []VolumeInstanceMapping
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, 20)
+	for _, volumeInstanceMapping := range volumeInstanceMappings {
+		wg.Add(1)
+		go func(volumeInstanceMapping *VolumeInstanceMapping) {
+			defer wg.Done()
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			_, err = ModifyLinuxVolumeWithTimeout(func(bastion *ssh.Client, volume *TargetVolume, instance *Target) (string, error) {
+				return ModifyLinuxVolume(bastion, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
+			}, 10*time.Second, bastionClient, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
+			if err != nil {
+				PrintError(WrapError(fmt.Errorf("cannot modify volume %s, instance id %s", err, volumeInstanceMapping.Instance.Id)))
+			}
+
+			volumeInstances = append(volumeInstances, *volumeInstanceMapping)
+
+		}(volumeInstanceMapping)
+	}
+	wg.Wait()
+
+	return volumeInstances, nil
 }

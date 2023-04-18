@@ -3,11 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh"
-	"sync"
-	"time"
+	"github.com/spf13/viper"
+	"strings"
 )
 
 const (
@@ -29,108 +29,87 @@ var (
 		Long:  "Exec `volume action` under AWS with interactive CLI",
 		Run: func(cmd *cobra.Command, args []string) {
 			var (
-			//err     error
-			//volumes []types.Volume
+				err error
+				//volumes []types.Volume
 			)
 
 			ctx := context.Background()
 
-			//function, err := internal.AskVolume(ctx, *credential.awsConfig)
-			//if err != nil {
-			//	internal.RealPanic(internal.WrapError(err))
-			//}
+			argFunction := strings.TrimSpace(viper.GetString("volume-function"))
+			if argFunction == "" {
+				fmt.Println(color.HiMagentaString("# mcl runs with the 'check' option since the '-f' option was not specified."))
+			}
+
+			bastion, err := internal.AskBastion(ctx, *credential.awsConfig)
+			if err != nil {
+				internal.RealPanic(internal.WrapError(err))
+			}
+
 			instances, err := internal.FindInstance(ctx, *credential.awsConfig)
 			if err != nil {
 				internal.RealPanic(internal.WrapError(err))
 			}
 
-			bastion, err := internal.AskTarget(ctx, *credential.awsConfig)
-			if err != nil {
-				internal.RealPanic(internal.WrapError(err))
-			}
-
 			bastionClient, err := internal.ConnectionBastion(bastion.PublicIp, bastion.KeyName)
+			if err != nil {
+				internal.RealPanic(internal.WrapError(err))
+			}
 
-			var wg sync.WaitGroup
-
-			mu := &sync.Mutex{}
-			var instanceIds []string
-
-			semaphore := make(chan struct{}, 20)
-			for _, instance := range instances {
-				wg.Add(1)
-				go func(instance *internal.Target) {
-					semaphore <- struct{}{}
-					defer func() { <-semaphore }()
-					defer wg.Done()
-
-					usage, err := internal.GetVolumeUsageWithTimeout(func(bastion *ssh.Client, target *internal.Target) (*internal.VolumeUsage, error) {
-						return internal.GetVolumeUsage(bastion, target)
-					}, 10*time.Second, bastionClient, instance)
+			switch argFunction {
+			case "check":
+				{
+					instanceIds, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
 					if err != nil {
-						fmt.Println(internal.WrapError(err))
+						internal.RealPanic(internal.WrapError(err))
 					}
 
-					if (usage != nil) && (usage.Usage > ThresholdPercentage) {
-						mu.Lock()
-						instanceIds = append(instanceIds, usage.InstanceId)
-						mu.Unlock()
+					if len(instanceIds) == 0 {
+						fmt.Println("EBS volumes checked and expanded if necessary")
 					}
-				}(instance)
-			}
-			wg.Wait()
 
-			volumes, err := internal.FindVolume(ctx, *credential.awsConfig, instanceIds)
-			if err != nil {
-				internal.RealPanic(internal.WrapError(err))
-			}
+					for _, instanceId := range instanceIds {
+						internal.PrintVolumeCheck("volume", instanceId, instanceUsageMapping[instanceId])
+					}
+				}
+			case "expand":
+				{
+					instanceIds, _, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					if err != nil {
+						internal.RealPanic(internal.WrapError(err))
+					}
 
-			expandedVolumes, err := internal.ExpandVolume(ctx, *credential.awsConfig, volumes, IncrementPercentage)
-			if err != nil {
-				internal.RealPanic(internal.WrapError(err))
-			}
+					volumes, err := internal.ExpandAndModifyVolumes(ctx, *credential.awsConfig, instances, instanceIds, IncrementPercentage, bastionClient)
+					if err != nil {
+						internal.RealPanic(internal.WrapError(err))
+					}
 
-			var volumeInstanceMappings []*VolumeInstanceMapping
-			for _, expandedVolume := range expandedVolumes {
-				for _, instance := range instances {
-					if expandedVolume.InstanceId == instance.Id {
-						volumeInstanceMappings = append(volumeInstanceMappings, &VolumeInstanceMapping{
-							Volume:   expandedVolume,
-							Instance: instance,
-						})
+					for _, volume := range volumes {
+						internal.PrintVolumeExpand("volume", volume.Instance.Id, volume.Volume.Id, volume.Volume.Size, volume.Volume.NewSize)
+					}
+				}
+			default:
+				{
+					instanceIds, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					if err != nil {
+						internal.RealPanic(internal.WrapError(err))
+					}
+
+					if len(instanceIds) == 0 {
+						fmt.Println("EBS volumes checked and expanded if necessary")
+					}
+
+					for _, instanceId := range instanceIds {
+						internal.PrintVolumeCheck("volume", instanceId, instanceUsageMapping[instanceId])
 					}
 				}
 			}
-
-			var expandedInstances []string
-			for _, volumeInstanceMapping := range volumeInstanceMappings {
-				wg.Add(1)
-				go func(volumeInstanceMapping *VolumeInstanceMapping) {
-					semaphore <- struct{}{}
-					defer func() { <-semaphore }()
-					defer wg.Done()
-
-					expandedInstance, err := internal.ModifyLinuxVolumeWithTimeout(func(bastion *ssh.Client, volume *internal.TargetVolume, instance *internal.Target) (string, error) {
-						return internal.ModifyLinuxVolume(bastion, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
-					}, 10*time.Second, bastionClient, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
-					if err != nil {
-						fmt.Println(internal.WrapError(err))
-					}
-
-					expandedInstances = append(expandedInstances, expandedInstance)
-
-				}(volumeInstanceMapping)
-			}
-			wg.Wait()
-
-			fmt.Println(expandedInstances)
 		},
 	}
 )
 
 func init() {
-	//startVolumeCommand.Flags().StringP("function", "f", "", "function name")
-	//viper.BindPFlag("volume-function", startVolumeCommand.Flags().Lookup("function"))
+	startVolumeCommand.Flags().StringP("function", "f", "", "function name")
+	viper.BindPFlag("volume-function", startVolumeCommand.Flags().Lookup("function"))
 
 	rootCmd.AddCommand(startVolumeCommand)
 }
