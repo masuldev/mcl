@@ -26,7 +26,7 @@ func GetVolumeUsageWithTimeout(f func(bastion *ssh.Client, target *Target) (*Vol
 	case err := <-errorChan:
 		return nil, err
 	case <-time.After(timeout):
-		return nil, fmt.Errorf("Timeout InstanceId: %s\n", target.Id)
+		return nil, fmt.Errorf("ssh connection timeout")
 	}
 }
 

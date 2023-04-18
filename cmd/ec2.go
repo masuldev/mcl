@@ -56,7 +56,7 @@ var (
 				}
 			}
 
-			internal.PrintReady("ec2", credential.awsConfig.Region, target.Name, target.Id, target.PublicIp, target.PrivateIp)
+			internal.PrintEc2("ec2", credential.awsConfig.Region, target.Name, target.Id, target.PublicIp, target.PrivateIp)
 		},
 	}
 )

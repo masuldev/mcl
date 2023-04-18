@@ -99,6 +99,36 @@ func AskTarget(ctx context.Context, cfg aws.Config) (*Target, error) {
 	return table[selectKey], nil
 }
 
+func AskBastion(ctx context.Context, cfg aws.Config) (*Target, error) {
+	table, err := FindInstance(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	options := make([]string, 0, len(table))
+	for k, _ := range table {
+		options = append(options, k)
+	}
+	sort.Strings(options)
+	if len(options) == 0 {
+		return nil, fmt.Errorf("not found ec2 instance")
+	}
+
+	prompt := &survey.Select{
+		Message: "Choose a bastion in AWS:",
+		Options: options,
+	}
+
+	selectKey := ""
+	if err := survey.AskOne(prompt, &selectKey, survey.WithIcons(func(icons *survey.IconSet) {
+		icons.SelectFocus.Format = "green+hb"
+	}), survey.WithPageSize(20)); err != nil {
+		return nil, err
+	}
+
+	return table[selectKey], err
+}
+
 func AskRegion(ctx context.Context, cfg aws.Config) (*Region, error) {
 	var regions []string
 	client := ec2.NewFromConfig(cfg)
@@ -152,6 +182,14 @@ func AskVolume(ctx context.Context, cfg aws.Config) (*Function, error) {
 	return &Function{Name: function}, nil
 }
 
-func PrintReady(cmd, region, name, id, publicIp, privateIp string) {
+func PrintEc2(cmd, region, name, id, publicIp, privateIp string) {
 	fmt.Printf("%s: region: %s, name: %s, id: %s, publicIp: %s, privateIp: %s\n", color.CyanString(cmd), color.YellowString(region), color.YellowString(name), color.YellowString(id), color.BlueString(publicIp), color.BlueString(privateIp))
+}
+
+func PrintVolumeCheck(cmd, instanceId string, usage int) {
+	fmt.Printf("%s: instance id: %s, usage: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.GreenString("%d", usage))
+}
+
+func PrintVolumeExpand(cmd, instanceId, volumeId string, size int32, newSize int64) {
+	fmt.Printf("%s: instance id: %s, volume id: %s, size: %s, newSize: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(volumeId), color.BlueString("%d", size), color.BlueString("%d", newSize))
 }

@@ -15,6 +15,10 @@ func RealPanic(err error) {
 	os.Exit(1)
 }
 
+func PrintError(err error) {
+	fmt.Println(color.RedString("err: %s", err.Error()))
+}
+
 func WrapError(err error) error {
 	if err != nil {
 		pc, _, line, _ := runtime.Caller(2)
