@@ -20,7 +20,7 @@ builds:
       - all=-trimpath={{.Env.GOPATH}}
     ldflags:
       - -s -w
-      - -X main.mclVersion=v0.0.8 # version
+      - -X main.mclVersion=v0.0.9 # version
     ignore:
       - goos: windows
         goarch: arm64
