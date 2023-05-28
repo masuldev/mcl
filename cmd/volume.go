@@ -10,11 +10,6 @@ import (
 	"strings"
 )
 
-const (
-	ThresholdPercentage = 80
-	IncrementPercentage = 30
-)
-
 type (
 	VolumeInstanceMapping struct {
 		Instance *internal.Target
@@ -38,6 +33,15 @@ var (
 			argFunction := strings.TrimSpace(viper.GetString("volume-function"))
 			if argFunction == "" {
 				fmt.Println(color.HiMagentaString("# mcl runs with the 'check' option since the '-f' option was not specified."))
+			}
+
+			IncrementPercentage := viper.GetInt("volume-increment")
+			if IncrementPercentage == 0 {
+				IncrementPercentage = 30
+			}
+			ThresholdPercentage := viper.GetInt("volume-threshold")
+			if ThresholdPercentage == 0 {
+				ThresholdPercentage = 80
 			}
 
 			bastion, err := internal.AskBastion(ctx, *credential.awsConfig)
@@ -111,7 +115,11 @@ var (
 
 func init() {
 	startVolumeCommand.Flags().StringP("function", "f", "", "function name")
+	startVolumeCommand.Flags().StringP("threshold", "t", "", "volume threshold percentage")
+	startVolumeCommand.Flags().StringP("increment", "i", "", "volume increment percentage")
 	viper.BindPFlag("volume-function", startVolumeCommand.Flags().Lookup("function"))
+	viper.BindPFlag("volume-threshold", startVolumeCommand.Flags().Lookup("threshold"))
+	viper.BindPFlag("volume-increment", startVolumeCommand.Flags().Lookup("increment"))
 
 	rootCmd.AddCommand(startVolumeCommand)
 }
