@@ -190,6 +190,6 @@ func PrintVolumeCheck(cmd, instanceId, instanceName string, usage int) {
 	fmt.Printf("%s: instance id: %s, instance name: %s, usage: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName), color.GreenString("%d", usage))
 }
 
-func PrintVolumeExpand(cmd, instanceId, volumeId string, size int32, newSize int64) {
-	fmt.Printf("%s: instance id: %s, volume id: %s, size: %s, newSize: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(volumeId), color.BlueString("%d", size), color.BlueString("%d", newSize))
+func PrintVolumeExpand(cmd, instanceId, instanceName, volumeId string, size int32, newSize int64) {
+	fmt.Printf("%s: instance id: %s, instance name: %s, volume id: %s, size: %s, newSize: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName), color.YellowString(volumeId), color.BlueString("%d", size), color.BlueString("%d", newSize))
 }

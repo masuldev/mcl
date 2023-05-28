@@ -58,58 +58,50 @@ var (
 			switch argFunction {
 			case "check":
 				{
-					instanceIds, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					targets, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}
 
-					if len(instanceIds) == 0 {
+					if len(targets) == 0 {
 						fmt.Println("EBS volumes checked and expanded if necessary")
 						return
 					}
 
-					for _, instanceId := range instanceIds {
-						for _, instance := range instances {
-							if instance.Id == instanceId {
-								internal.PrintVolumeCheck("volume", instanceId, instance.Name, instanceUsageMapping[instanceId])
-							}
-						}
+					for _, target := range targets {
+						internal.PrintVolumeCheck("volume", target.Id, target.Name, instanceUsageMapping[target])
 					}
 				}
 			case "expand":
 				{
-					instanceIds, _, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					targets, _, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}
 
-					volumes, err := internal.ExpandAndModifyVolumes(ctx, *credential.awsConfig, instances, instanceIds, IncrementPercentage, bastionClient)
+					volumes, err := internal.ExpandAndModifyVolumes(ctx, *credential.awsConfig, instances, targets, IncrementPercentage, bastionClient)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}
 
 					for _, volume := range volumes {
-						internal.PrintVolumeExpand("volume", volume.Instance.Id, volume.Volume.Id, volume.Volume.Size, volume.Volume.NewSize)
+						internal.PrintVolumeExpand("volume", volume.Instance.Id, volume.Instance.Name, volume.Volume.Id, volume.Volume.Size, volume.Volume.NewSize)
 					}
 				}
 			default:
 				{
-					instanceIds, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					targets, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}
 
-					if len(instanceIds) == 0 {
+					if len(targets) == 0 {
 						fmt.Println("EBS volumes checked and expanded if necessary")
 						return
 					}
 
-					for _, instanceId := range instanceIds {
-						for _, instance := range instances {
-							if instance.Id == instanceId {
-								internal.PrintVolumeCheck("volume", instanceId, instance.Name, instanceUsageMapping[instanceId])
-							}
-						}
+					for _, target := range targets {
+						internal.PrintVolumeCheck("volume", target.Id, target.Name, instanceUsageMapping[target])
 					}
 				}
 			}

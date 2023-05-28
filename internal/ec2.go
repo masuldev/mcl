@@ -128,12 +128,14 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 	return instances, nil
 }
 
-func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.Client, thresholdPercentage int) ([]string, map[string]int, error) {
+type ()
+
+func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.Client, thresholdPercentage int) ([]*Target, map[*Target]int, error) {
 	var (
-		instanceIds []string
-		wg          sync.WaitGroup
+		targets []*Target
+		wg      sync.WaitGroup
 	)
-	instanceIdUsageMapping := make(map[string]int)
+	instanceIdUsageMapping := make(map[*Target]int)
 	semaphore := make(chan struct{}, 20)
 
 	mu := &sync.Mutex{}
@@ -153,13 +155,13 @@ func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.
 
 			if (usage != 0) && (usage > thresholdPercentage) {
 				mu.Lock()
-				instanceIds = append(instanceIds, instance.Id)
-				instanceIdUsageMapping[instance.Id] = usage
+				targets = append(targets, instance)
+				instanceIdUsageMapping[instance] = usage
 				mu.Unlock()
 			}
 		}(instance)
 	}
 	wg.Wait()
 
-	return instanceIds, instanceIdUsageMapping, nil
+	return targets, instanceIdUsageMapping, nil
 }

@@ -174,7 +174,12 @@ func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId 
 	return nil
 }
 
-func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances map[string]*Target, instanceIds []string, incrementPercentage int, bastionClient *ssh.Client) ([]VolumeInstanceMapping, error) {
+func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances map[string]*Target, targets []*Target, incrementPercentage int, bastionClient *ssh.Client) ([]VolumeInstanceMapping, error) {
+	var instanceIds []string
+	for _, target := range targets {
+		instanceIds = append(instanceIds, target.Id)
+	}
+
 	volumes, err := FindVolume(ctx, awsConfig, instanceIds)
 	if err != nil {
 		return nil, WrapError(err)
@@ -215,7 +220,6 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 			}
 
 			volumeInstances = append(volumeInstances, *volumeInstanceMapping)
-
 		}(volumeInstanceMapping)
 	}
 	wg.Wait()
