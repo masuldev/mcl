@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-func GetVolumeUsageWithTimeout(f func(bastion *ssh.Client, target *Target) (*VolumeUsage, error), timeout time.Duration, bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
-	resultChan := make(chan *VolumeUsage)
+func GetVolumeUsageWithTimeout(f func(bastion *ssh.Client, target *Target) (int, error), timeout time.Duration, bastion *ssh.Client, target *Target) (int, error) {
+	resultChan := make(chan int)
 	errorChan := make(chan error)
 
 	go func() {
@@ -24,9 +24,9 @@ func GetVolumeUsageWithTimeout(f func(bastion *ssh.Client, target *Target) (*Vol
 	case result := <-resultChan:
 		return result, nil
 	case err := <-errorChan:
-		return nil, err
+		return 0, err
 	case <-time.After(timeout):
-		return nil, fmt.Errorf("ssh connection timeout")
+		return 0, fmt.Errorf("ssh connection timeout")
 	}
 }
 

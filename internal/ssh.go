@@ -9,14 +9,6 @@ import (
 	"strings"
 )
 
-type (
-	VolumeUsage struct {
-		Usage      int
-		InstanceId string
-		InstanceIp string
-	}
-)
-
 func ConnectionBastion(bastionHost, keyName string) (*ssh.Client, error) {
 	user := "ec2-user"
 	keyPath := fmt.Sprintf("%s/.ssh/%s.pem", FindHomeFolder(), keyName)
@@ -46,18 +38,18 @@ func ConnectionBastion(bastionHost, keyName string) (*ssh.Client, error) {
 	return bastionClient, nil
 }
 
-func GetVolumeUsage(bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
+func GetVolumeUsage(bastion *ssh.Client, target *Target) (int, error) {
 	user := "ec2-user"
 	keyPath := fmt.Sprintf("%s/.ssh/%s.pem", FindHomeFolder(), target.KeyName)
 
 	key, err := os.ReadFile(keyPath)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	config := &ssh.ClientConfig{
@@ -70,12 +62,12 @@ func GetVolumeUsage(bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
 
 	conn, err := bastion.Dial("tcp", target.PrivateIp+":22")
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	ncc, chans, reqs, err := ssh.NewClientConn(conn, target.PrivateIp+":22", config)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	targetClient := ssh.NewClient(ncc, chans, reqs)
@@ -83,7 +75,7 @@ func GetVolumeUsage(bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
 
 	session, err := targetClient.NewSession()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	defer session.Close()
@@ -93,12 +85,12 @@ func GetVolumeUsage(bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
 	cmd := "df --output=pcent / | tail -1 | tr -dc '0-9'"
 	err = session.Run(cmd)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	convertedUsage, err := strconv.Atoi(stdoutBuf.String())
 
-	return &VolumeUsage{InstanceId: target.Id, InstanceIp: target.PrivateIp, Usage: convertedUsage}, nil
+	return convertedUsage, nil
 }
 
 func ModifyLinuxVolume(bastion *ssh.Client, volume *TargetVolume, instance *Target) (string, error) {

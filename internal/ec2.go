@@ -129,12 +129,14 @@ func FindInstanceIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 }
 
 func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.Client, thresholdPercentage int) ([]string, map[string]int, error) {
-	var instanceIds []string
+	var (
+		instanceIds []string
+		wg          sync.WaitGroup
+	)
 	instanceIdUsageMapping := make(map[string]int)
-	var wg sync.WaitGroup
-	mu := &sync.Mutex{}
 	semaphore := make(chan struct{}, 20)
 
+	mu := &sync.Mutex{}
 	for _, instance := range instances {
 		wg.Add(1)
 		go func(instance *Target) {
@@ -142,17 +144,17 @@ func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			usage, err := GetVolumeUsageWithTimeout(func(bastion *ssh.Client, target *Target) (*VolumeUsage, error) {
+			usage, err := GetVolumeUsageWithTimeout(func(bastion *ssh.Client, target *Target) (int, error) {
 				return GetVolumeUsage(bastion, target)
 			}, 10*time.Second, bastionClient, instance)
 			if err != nil {
 				PrintError(WrapError(fmt.Errorf("cannot get volume usage %s, instance id: %s", err, instance.Id)))
 			}
 
-			if (usage != nil) && (usage.Usage > thresholdPercentage) {
+			if (usage != 0) && (usage > thresholdPercentage) {
 				mu.Lock()
-				instanceIds = append(instanceIds, usage.InstanceId)
-				instanceIdUsageMapping[usage.InstanceId] = usage.Usage
+				instanceIds = append(instanceIds, instance.Id)
+				instanceIdUsageMapping[instance.Id] = usage
 				mu.Unlock()
 			}
 		}(instance)

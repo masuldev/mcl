@@ -65,10 +65,15 @@ var (
 
 					if len(instanceIds) == 0 {
 						fmt.Println("EBS volumes checked and expanded if necessary")
+						return
 					}
 
 					for _, instanceId := range instanceIds {
-						internal.PrintVolumeCheck("volume", instanceId, instanceUsageMapping[instanceId])
+						for _, instance := range instances {
+							if instance.Id == instanceId {
+								internal.PrintVolumeCheck("volume", instanceId, instance.Name, instanceUsageMapping[instanceId])
+							}
+						}
 					}
 				}
 			case "expand":
@@ -96,10 +101,15 @@ var (
 
 					if len(instanceIds) == 0 {
 						fmt.Println("EBS volumes checked and expanded if necessary")
+						return
 					}
 
 					for _, instanceId := range instanceIds {
-						internal.PrintVolumeCheck("volume", instanceId, instanceUsageMapping[instanceId])
+						for _, instance := range instances {
+							if instance.Id == instanceId {
+								internal.PrintVolumeCheck("volume", instanceId, instance.Name, instanceUsageMapping[instanceId])
+							}
+						}
 					}
 				}
 			}

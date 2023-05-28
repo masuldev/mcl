@@ -186,8 +186,8 @@ func PrintEc2(cmd, region, name, id, publicIp, privateIp string) {
 	fmt.Printf("%s: region: %s, name: %s, id: %s, publicIp: %s, privateIp: %s\n", color.CyanString(cmd), color.YellowString(region), color.YellowString(name), color.YellowString(id), color.BlueString(publicIp), color.BlueString(privateIp))
 }
 
-func PrintVolumeCheck(cmd, instanceId string, usage int) {
-	fmt.Printf("%s: instance id: %s, usage: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.GreenString("%d", usage))
+func PrintVolumeCheck(cmd, instanceId, instanceName string, usage int) {
+	fmt.Printf("%s: instance id: %s, instance name: %s, usage: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName), color.GreenString("%d", usage))
 }
 
 func PrintVolumeExpand(cmd, instanceId, volumeId string, size int32, newSize int64) {
