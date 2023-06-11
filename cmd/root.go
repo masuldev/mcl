@@ -9,7 +9,6 @@ import (
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"io/ioutil"
 	"os"
 )
 
@@ -36,11 +35,6 @@ var (
 
 func Execute(version string) {
 	rootCmd.Version = version
-
-	//err := errors.New("Invalid")
-	//if err != nil {
-	//	internal.RealPanic(internal.WrapError(err))
-	//}
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -112,7 +106,7 @@ func checkConfig() {
 		var mfaCredentialFormat = "[%s]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n"
 
 		temporaryCredentialsString := fmt.Sprintf(mfaCredentialFormat, credential.awsProfile, temporaryCredentials.AccessKeyID, temporaryCredentials.SecretAccessKey, temporaryCredentials.SessionToken)
-		if err := ioutil.WriteFile(credentialWithTemporary, []byte(temporaryCredentialsString), 0600); err != nil {
+		if err := os.WriteFile(credentialWithTemporary, []byte(temporaryCredentialsString), 0600); err != nil {
 			internal.RealPanic(internal.WrapError(err))
 		}
 
