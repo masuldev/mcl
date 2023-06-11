@@ -117,7 +117,7 @@ func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
 	return volumes, nil
 }
 
-func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) ([]*TargetVolume, error) {
+func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) []*TargetVolume {
 	var (
 		expandedVolumes []*TargetVolume
 		client          = ec2.NewFromConfig(cfg)
@@ -134,19 +134,19 @@ func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*Targe
 
 		_, err := client.ModifyVolume(ctx, modifyVolumeInput)
 		if err != nil {
-			return nil, fmt.Errorf("error modifying volume size: %v", err)
+			PrintError(WrapError(fmt.Errorf("error modifying volume size: %v", err)))
 		}
 
 		err = waitUntilVolumeAvailable(ctx, client, volume.Id)
 		if err != nil {
-			return nil, fmt.Errorf("error waiting for volume to be available: %v", err)
+			PrintError(WrapError(fmt.Errorf("error waiting for volume to be available: %v", err)))
 		}
 
 		volume.NewSize = newSize
 		expandedVolumes = append(expandedVolumes, volume)
 	}
 
-	return expandedVolumes, nil
+	return expandedVolumes
 }
 
 func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId string) error {
@@ -185,10 +185,7 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 		return nil, WrapError(err)
 	}
 
-	expandedVolumes, err := ExpandVolume(ctx, awsConfig, volumes, incrementPercentage)
-	if err != nil {
-		return nil, WrapError(err)
-	}
+	expandedVolumes := ExpandVolume(ctx, awsConfig, volumes, incrementPercentage)
 
 	var volumeInstanceMappings []*VolumeInstanceMapping
 	for _, expandedVolume := range expandedVolumes {
@@ -217,6 +214,7 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 			}, 10*time.Second, bastionClient, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
 			if err != nil {
 				PrintError(WrapError(fmt.Errorf("cannot modify volume %s, instance id %s", err, volumeInstanceMapping.Instance.Id)))
+				return
 			}
 
 			volumeInstances = append(volumeInstances, *volumeInstanceMapping)

@@ -99,6 +99,10 @@ func AskTarget(ctx context.Context, cfg aws.Config) (*Target, error) {
 	return table[selectKey], nil
 }
 
+//func AskRdsTarsget(ctx context.Context, cfg aws.Config) (*RdsTarget, error) {
+//	table, err := Find
+//}
+
 func AskBastion(ctx context.Context, cfg aws.Config) (*Target, error) {
 	table, err := FindInstance(ctx, cfg)
 	if err != nil {
