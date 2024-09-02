@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"os"
+	"time"
 )
 
 type Credential struct {
@@ -43,6 +44,8 @@ func Execute(version string) {
 }
 
 func checkConfig() {
+	start := time.Now()
+
 	credential = &Credential{}
 
 	awsProfile := viper.GetString("profile")
@@ -131,6 +134,8 @@ func checkConfig() {
 		credential.awsConfig.Region = askRegion.Name
 	}
 	color.Cyan("region: %s", credential.awsConfig.Region)
+	end := time.Since(start)
+	fmt.Println("1초가 걸린 시간:", end)
 }
 
 func init() {

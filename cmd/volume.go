@@ -73,7 +73,7 @@ var (
 					}
 
 					for _, target := range targets {
-						internal.PrintVolumeCheck("volume", target.Id, target.Name, instanceUsageMapping[target])
+						internal.PrintVolumeCheck("volume", target.Id, target.Name, target.PrivateIp, instanceUsageMapping[target])
 					}
 				}
 			case "expand":
@@ -105,7 +105,7 @@ var (
 					}
 
 					for _, target := range targets {
-						internal.PrintVolumeCheck("volume", target.Id, target.Name, instanceUsageMapping[target])
+						internal.PrintVolumeCheck("volume", target.Id, target.Name, target.PrivateIp, instanceUsageMapping[target])
 					}
 				}
 			}
