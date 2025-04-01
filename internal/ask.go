@@ -75,9 +75,12 @@ func AskTarget(ctx context.Context, cfg aws.Config) (*Target, error) {
 		return nil, err
 	}
 
+	displayMap := make(map[string]*Target, len(table))
 	options := make([]string, 0, len(table))
-	for k, _ := range table {
-		options = append(options, k)
+	for _, target := range table {
+		option := fmt.Sprintf("%s (%s)", target.Name, target.Id)
+		options = append(options, option)
+		displayMap[option] = target
 	}
 	sort.Strings(options)
 	if len(options) == 0 {
@@ -96,7 +99,7 @@ func AskTarget(ctx context.Context, cfg aws.Config) (*Target, error) {
 		return nil, err
 	}
 
-	return table[selectKey], nil
+	return displayMap[selectKey], nil
 }
 
 //func AskRdsTarsget(ctx context.Context, cfg aws.Config) (*RdsTarget, error) {
@@ -109,9 +112,12 @@ func AskBastion(ctx context.Context, cfg aws.Config) (*Target, error) {
 		return nil, err
 	}
 
+	displayMap := make(map[string]*Target, len(table))
 	options := make([]string, 0, len(table))
-	for k, _ := range table {
-		options = append(options, k)
+	for _, target := range table {
+		option := fmt.Sprintf("%s (%s)", target.Name, target.Id)
+		options = append(options, option)
+		displayMap[option] = target
 	}
 	sort.Strings(options)
 	if len(options) == 0 {
@@ -130,7 +136,7 @@ func AskBastion(ctx context.Context, cfg aws.Config) (*Target, error) {
 		return nil, err
 	}
 
-	return table[selectKey], err
+	return displayMap[selectKey], err
 }
 
 func AskRegion(ctx context.Context, cfg aws.Config) (*Region, error) {

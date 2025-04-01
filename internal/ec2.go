@@ -66,6 +66,7 @@ func FindInstance(ctx context.Context, cfg aws.Config) (map[string]*Target, erro
 			}
 		}
 	}
+
 	return table, nil
 }
 
