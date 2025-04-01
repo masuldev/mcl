@@ -117,10 +117,11 @@ func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
 	return volumes, nil
 }
 
-func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) []*TargetVolume {
+func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) ([]*TargetVolume, error) {
 	var (
 		expandedVolumes []*TargetVolume
 		client          = ec2.NewFromConfig(cfg)
+		errList         []error
 	)
 
 	for _, volume := range volumes {
@@ -134,47 +135,56 @@ func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*Targe
 
 		_, err := client.ModifyVolume(ctx, modifyVolumeInput)
 		if err != nil {
-			PrintError(WrapError(fmt.Errorf("error modifying volume size: %v", err)))
+			errList = append(errList, fmt.Errorf("error modifying volume %s: %v", volume.Id, err))
+			continue
 		}
 
 		err = waitUntilVolumeAvailable(ctx, client, volume.Id)
 		if err != nil {
-			PrintError(WrapError(fmt.Errorf("error waiting for volume to be available: %v", err)))
+			errList = append(errList, fmt.Errorf("error waiting for volume %s to be available: %v", volume.Id, err))
 		}
 
 		volume.NewSize = newSize
 		expandedVolumes = append(expandedVolumes, volume)
 	}
 
-	return expandedVolumes
+	var retErr error
+	if len(errList) > 0 {
+		retErr = fmt.Errorf("following errors occurred: %v", errList)
+	}
+
+	return expandedVolumes, retErr
 }
 
 func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId string) error {
-	var (
-		describeVolumesModificationsInput = &ec2.DescribeVolumesModificationsInput{
-			VolumeIds: []string{volumeId},
-		}
-	)
+	describeInput := &ec2.DescribeVolumesModificationsInput{
+		VolumeIds: []string{volumeId},
+	}
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
 
 	for {
-		output, err := client.DescribeVolumesModifications(ctx, describeVolumesModificationsInput)
-		if err != nil {
-			return fmt.Errorf("error describing volume: %v", err)
-		}
-
-		if len(output.VolumesModifications) > 0 {
-			if output.VolumesModifications[0].ModificationState == types.VolumeModificationStateOptimizing {
-				break
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for volume %s to be available", volumeId)
+		case <-ticker.C:
+			output, err := client.DescribeVolumesModifications(ctx, describeInput)
+			if err != nil {
+				return fmt.Errorf("error describing volume %s: %v", volumeId, err)
+			}
+			if len(output.VolumesModifications) > 0 && output.VolumesModifications[0].ModificationState == types.VolumeModificationStateOptimizing {
+				return nil
 			}
 		}
-
-		time.Sleep(5 * time.Second)
 	}
-
-	return nil
 }
 
 func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances map[string]*Target, targets []*Target, incrementPercentage int, bastionClient *ssh.Client) ([]VolumeInstanceMapping, error) {
+	instanceLookup := make(map[string]*Target)
+	for _, instance := range instances {
+		instanceLookup[instance.Id] = instance
+	}
+
 	var instanceIds []string
 	for _, target := range targets {
 		instanceIds = append(instanceIds, target.Id)
@@ -182,43 +192,48 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 
 	volumes, err := FindVolume(ctx, awsConfig, instanceIds)
 	if err != nil {
-		return nil, WrapError(err)
+		return nil, fmt.Errorf("error finding volumes: %w", err)
 	}
 
-	expandedVolumes := ExpandVolume(ctx, awsConfig, volumes, incrementPercentage)
+	expandedVolumes, err := ExpandVolume(ctx, awsConfig, volumes, incrementPercentage)
+	if err != nil {
+		PrintError(err)
+	}
 
 	var volumeInstanceMappings []*VolumeInstanceMapping
-	for _, expandedVolume := range expandedVolumes {
-		for _, instance := range instances {
-			if expandedVolume.InstanceId == instance.Id {
-				volumeInstanceMappings = append(volumeInstanceMappings, &VolumeInstanceMapping{
-					Volume:   expandedVolume,
-					Instance: instance,
-				})
-			}
+	for _, volume := range expandedVolumes {
+		if instance, ok := instanceLookup[volume.InstanceId]; ok {
+			volumeInstanceMappings = append(volumeInstanceMappings, &VolumeInstanceMapping{
+				Volume:   volume,
+				Instance: instance,
+			})
 		}
 	}
 
 	var volumeInstances []VolumeInstanceMapping
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, 20)
-	for _, volumeInstanceMapping := range volumeInstanceMappings {
+	var mu sync.Mutex
+
+	for _, mapping := range volumeInstanceMappings {
 		wg.Add(1)
-		go func(volumeInstanceMapping *VolumeInstanceMapping) {
+		go func(mapping *VolumeInstanceMapping) {
 			defer wg.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
 			_, err = ModifyLinuxVolumeWithTimeout(func(bastion *ssh.Client, volume *TargetVolume, instance *Target) (string, error) {
-				return ModifyLinuxVolume(bastion, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
-			}, 10*time.Second, bastionClient, volumeInstanceMapping.Volume, volumeInstanceMapping.Instance)
+				return ModifyLinuxVolume(bastion, mapping.Volume, mapping.Instance)
+			}, 10*time.Second, bastionClient, mapping.Volume, mapping.Instance)
 			if err != nil {
-				PrintError(WrapError(fmt.Errorf("cannot modify volume %s, instance id %s", err, volumeInstanceMapping.Instance.Id)))
+				PrintError(WrapError(fmt.Errorf("cannot modify volume %s, instance id %s", err, mapping.Instance.Id)))
 				return
 			}
 
-			volumeInstances = append(volumeInstances, *volumeInstanceMapping)
-		}(volumeInstanceMapping)
+			mu.Lock()
+			volumeInstances = append(volumeInstances, *mapping)
+			mu.Unlock()
+		}(mapping)
 	}
 	wg.Wait()
 
