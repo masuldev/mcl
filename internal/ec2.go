@@ -66,6 +66,7 @@ func FindInstance(ctx context.Context, cfg aws.Config) (map[string]*Target, erro
 			}
 		}
 	}
+	return table, nil
 }
 
 func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.Client, thresholdPercentage int) ([]*Target, map[*Target]int, error) {
