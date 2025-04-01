@@ -23,90 +23,61 @@ type (
 )
 
 func FindInstance(ctx context.Context, cfg aws.Config) (map[string]*Target, error) {
-	var (
-		client     = ec2.NewFromConfig(cfg)
-		table      = make(map[string]*Target)
-		outputFunc = func(table map[string]*Target, output *ec2.DescribeInstancesOutput) {
-			for _, reservation := range output.Reservations {
-				for _, instance := range reservation.Instances {
-					name := ""
-					group := ""
-					for _, tag := range instance.Tags {
-						if aws.ToString(tag.Key) == "Name" {
-							name = aws.ToString(tag.Value)
-							break
-						}
-					}
+	client := ec2.NewFromConfig(cfg)
+	table := make(map[string]*Target)
 
-					for _, tag := range instance.Tags {
-						if aws.ToString(tag.Key) == "Server-Group" {
-							group = aws.ToString(tag.Value)
-							break
-						}
-					}
-
-					table[fmt.Sprintf("%s\t(%s)", name, *instance.InstanceId)] = &Target{
-						Id:        aws.ToString(instance.InstanceId),
-						Name:      name,
-						PublicIp:  aws.ToString(instance.PublicIpAddress),
-						PrivateIp: aws.ToString(instance.PrivateIpAddress),
-						Group:     group,
-						KeyName:   aws.ToString(instance.KeyName),
-					}
-				}
-			}
-		}
-	)
-
-	output, err := client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
+	paginator := ec2.NewDescribeInstancesPaginator(client, &ec2.DescribeInstancesInput{
 		MaxResults: aws.Int32(maxOutputResults),
 		Filters: []types.Filter{
-			{Name: aws.String("instance-state-name"), Values: []string{"running"}},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"running"},
+			},
 		},
 	})
 
-	if err != nil {
-		return nil, err
-	}
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
 
-	outputFunc(table, output)
+		for _, reservation := range output.Reservations {
+			for _, instance := range reservation.Instances {
+				var name, group string
+				for _, tag := range instance.Tags {
+					switch aws.ToString(tag.Key) {
+					case "Name":
+						name = aws.ToString(tag.Value)
+					case "Server-Group":
+						group = aws.ToString(tag.Value)
+					}
+				}
 
-	if aws.ToString(output.NextToken) != "" {
-		token := aws.ToString(output.NextToken)
-		for {
-			if token == "" {
-				break
+				instanceId := aws.ToString(instance.InstanceId)
+				table[instanceId] = &Target{
+					Id:        instanceId,
+					Name:      name,
+					PublicIp:  aws.ToString(instance.PublicIpAddress),
+					PrivateIp: aws.ToString(instance.PrivateIpAddress),
+					Group:     group,
+					KeyName:   aws.ToString(instance.KeyName),
+				}
 			}
-
-			nextOutput, err := client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-				NextToken:  aws.String(token),
-				MaxResults: aws.Int32(maxOutputResults),
-				Filters: []types.Filter{
-					{Name: aws.String("instance-state-name"), Values: []string{"running"}},
-				},
-			})
-
-			if err != nil {
-				return nil, err
-			}
-
-			outputFunc(table, nextOutput)
-			token = aws.ToString(nextOutput.NextToken)
 		}
 	}
-
-	return table, nil
 }
 
 func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.Client, thresholdPercentage int) ([]*Target, map[*Target]int, error) {
-	var (
-		targets []*Target
-		wg      sync.WaitGroup
-	)
-	instanceIdUsageMapping := make(map[*Target]int)
-	semaphore := make(chan struct{}, 20)
+	type usageResult struct {
+		target *Target
+		usage  int
+	}
 
-	mu := &sync.Mutex{}
+	resultChan := make(chan usageResult, len(instances))
+	semaphore := make(chan struct{}, 20)
+	var wg sync.WaitGroup
+
 	for _, instance := range instances {
 		wg.Add(1)
 		go func(instance *Target) {
@@ -118,19 +89,24 @@ func GetInstancesWithHighUsage(instances map[string]*Target, bastionClient *ssh.
 				return GetVolumeUsage(bastion, target)
 			}, 10*time.Second, bastionClient, instance)
 			if err != nil {
-				PrintError(WrapError(fmt.Errorf("cannot get volume usage %s, instance id: %s", err, instance.Id)))
+				PrintError(WrapError(fmt.Errorf("cannot get volume usage for instance id %s: %v", instance.Id, err)))
 				return
 			}
 
-			if (usage != 0) && (usage > thresholdPercentage) {
-				mu.Lock()
-				targets = append(targets, instance)
-				instanceIdUsageMapping[instance] = usage
-				mu.Unlock()
+			if usage > thresholdPercentage {
+				resultChan <- usageResult{target: instance, usage: usage}
 			}
 		}(instance)
 	}
 	wg.Wait()
+	close(resultChan)
 
-	return targets, instanceIdUsageMapping, nil
+	var targets []*Target
+	instanceUsageMapping := make(map[*Target]int)
+	for res := range resultChan {
+		targets = append(targets, res.target)
+		instanceUsageMapping[res.target] = res.usage
+	}
+
+	return targets, instanceUsageMapping, nil
 }

@@ -24,20 +24,22 @@ func NewConfig(ctx context.Context, key, secret, session, region, roleArn string
 		opts = append(opts, config.WithRegion(region))
 	}
 
-	if key == "" || secret == "" {
-		cfg, err = config.LoadDefaultConfig(ctx, opts...)
-	} else {
+	// 자격 증명 옵션 추가: key와 secret이 모두 제공된 경우에만 추가
+	if key != "" && secret != "" {
 		opts = append(opts, config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(key, secret, session)))
-		cfg, err = config.LoadDefaultConfig(ctx, opts...)
 	}
+
+	// 한 번의 호출로 기본 구성 로드
+	cfg, err = config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return aws.Config{}, WrapError(err)
 	}
 
+	// roleArn이 제공된 경우 AssumeRole Provider 적용
 	if roleArn != "" {
-		sts := sts.NewFromConfig(cfg)
-		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(sts, roleArn))
+		stsClient := sts.NewFromConfig(cfg)
+		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsClient, roleArn))
 	}
 
 	return cfg, nil

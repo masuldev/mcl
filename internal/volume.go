@@ -26,95 +26,79 @@ type (
 	}
 )
 
-func FindVolume(ctx context.Context, cfg aws.Config, instanceIds []string) (map[string]*TargetVolume, error) {
-	var (
-		client     = ec2.NewFromConfig(cfg)
-		table      = make(map[string]*TargetVolume)
-		outputFunc = func(table map[string]*TargetVolume, output *ec2.DescribeVolumesOutput) {
-			for _, volume := range output.Volumes {
-				if len(volume.Attachments) > 0 {
-					for _, instanceId := range instanceIds {
-						if aws.ToString(volume.Attachments[0].InstanceId) == instanceId {
-							table[fmt.Sprintf("%s\t", instanceId)] = &TargetVolume{
-								Id:         aws.ToString(volume.Attachments[0].VolumeId),
-								Size:       aws.ToInt32(volume.Size),
-								InstanceId: aws.ToString(volume.Attachments[0].InstanceId),
-								Device:     aws.ToString(volume.Attachments[0].Device),
-							}
-						}
-					}
-				}
-			}
-		}
-	)
+const maxBatchSize = 199
 
-	volumes, err := FindVolumes(ctx, cfg)
+func FindVolume(ctx context.Context, cfg aws.Config, instanceIds []string) (map[string]*TargetVolume, error) {
+	client := ec2.NewFromConfig(cfg)
+	volumeTable := make(map[string]*TargetVolume)
+
+	instanceIdSet := make(map[string]struct{}, len(instanceIds))
+	for _, id := range instanceIds {
+		instanceIdSet[id] = struct{}{}
+	}
+
+	allVolumeIds, err := FindVolumes(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	for len(volumes) > 0 {
-		max := len(volumes)
-
-		if max >= 200 {
-			max = 199
+	for i := 0; i < len(allVolumeIds); i += maxBatchSize {
+		end := i + maxBatchSize
+		if end > len(allVolumeIds) {
+			end = len(allVolumeIds)
 		}
+		batch := allVolumeIds[i:end]
+
 		output, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
 			Filters: []types.Filter{
-				{Name: aws.String("volume-id"), Values: volumes[:max]},
+				{
+					Name:   aws.String("volume-id"),
+					Values: batch,
+				},
 			},
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		outputFunc(table, output)
-		volumes = volumes[max:]
+		for _, vol := range output.Volumes {
+			if len(vol.Attachments) > 0 {
+				attachment := vol.Attachments[0]
+				instanceId := aws.ToString(attachment.InstanceId)
+				if _, exists := instanceIdSet[instanceId]; exists {
+					volumeTable[instanceId] = &TargetVolume{
+						Id:         aws.ToString(attachment.VolumeId),
+						Size:       aws.ToInt32(vol.Size),
+						InstanceId: instanceId,
+						Device:     aws.ToString(attachment.Device),
+					}
+				}
+			}
+		}
 	}
-	return table, nil
+
+	return volumeTable, nil
 }
 
 func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
-	var (
-		volumes    []string
-		client     = ec2.NewFromConfig(cfg)
-		outputFunc = func(volumes []string, output *ec2.DescribeVolumesOutput) []string {
-			for _, volume := range output.Volumes {
-				volumes = append(volumes, aws.ToString(volume.VolumeId))
-			}
-			return volumes
+	client := ec2.NewFromConfig(cfg)
+	var volumeIds []string
+
+	paginator := ec2.NewDescribeVolumesPaginator(client, &ec2.DescribeVolumesInput{
+		MaxResults: aws.Int32(maxOutputResults),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
 		}
-	)
-
-	output, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{MaxResults: aws.Int32(maxOutputResults)})
-	if err != nil {
-		return nil, err
-	}
-
-	volumes = outputFunc(volumes, output)
-
-	if aws.ToString(output.NextToken) != "" {
-		token := aws.ToString(output.NextToken)
-		for {
-			if token == "" {
-				break
-			}
-
-			nextOutput, err := client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
-				NextToken:  aws.String(token),
-				MaxResults: aws.Int32(maxOutputResults),
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			volumes = outputFunc(volumes, nextOutput)
-
-			token = aws.ToString(nextOutput.NextToken)
+		for _, vol := range page.Volumes {
+			volumeIds = append(volumeIds, aws.ToString(vol.VolumeId))
 		}
 	}
 
-	return volumes, nil
+	return volumeIds, nil
 }
 
 func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) ([]*TargetVolume, error) {
