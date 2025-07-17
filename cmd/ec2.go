@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"strings"
+
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"strings"
 )
 
 var (
@@ -20,9 +22,15 @@ var (
 			)
 			ctx := context.Background()
 
+			// 전역 AWS Config 사용
+			awsConfig := GetGlobalAwsConfig()
+			if awsConfig == nil {
+				internal.RealPanic(fmt.Errorf("AWS config not initialized"))
+			}
+
 			argTarget := strings.TrimSpace(viper.GetString("ec2-target"))
 			if argTarget != "" {
-				table, err := internal.FindInstance(ctx, *credential.awsConfig)
+				table, err := internal.FindInstance(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(internal.WrapError(err))
 				}
@@ -36,7 +44,7 @@ var (
 
 			argGroup := strings.TrimSpace(viper.GetString("ec2-group"))
 			if argGroup != "" {
-				table, err := internal.FindInstance(ctx, *credential.awsConfig)
+				table, err := internal.FindInstance(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(internal.WrapError(err))
 				}
@@ -50,13 +58,13 @@ var (
 			}
 
 			if target == nil {
-				target, err = internal.AskTarget(ctx, *credential.awsConfig)
+				target, err = internal.AskTarget(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(err)
 				}
 			}
 
-			internal.PrintEc2("ec2", credential.awsConfig.Region, target.Name, target.Id, target.PublicIp, target.PrivateIp)
+			internal.PrintEc2("ec2", awsConfig.Region, target.Name, target.Id, target.PublicIp, target.PrivateIp)
 		},
 	}
 )
