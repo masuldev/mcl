@@ -99,5 +99,5 @@ jobs:
 
       - name: Delete branch after successful release
         run: |
-          git push origin --delete ${{ env.VERSION }}
-        if: success() 
+          git push origin --delete refs/heads/${VERSION}
+        if: success()
