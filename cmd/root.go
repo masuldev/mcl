@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -33,6 +34,12 @@ var (
 
 func Execute(version string) {
 	rootCmd.Version = version
+
+	// --version 플래그만 입력된 경우 버전만 출력하고 종료
+	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Println(version)
+		return
+	}
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -74,6 +81,9 @@ func GetGlobalRegion() string {
 func init() {
 	rootCmd.PersistentFlags().StringP("profile", "p", "", "profile")
 	rootCmd.PersistentFlags().StringP("region", "r", "", "region")
+
+	// --version 플래그 지원
+	rootCmd.Flags().BoolP("version", "v", false, "Print the version and exit")
 
 	viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
 	viper.BindPFlag("region", rootCmd.PersistentFlags().Lookup("region"))

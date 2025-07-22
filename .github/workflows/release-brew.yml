@@ -1,0 +1,103 @@
+name: Release to Homebrew
+
+on:
+  push:
+    branches:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Extract version from branch name
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/heads/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build with version injection
+        run: |
+          go build -ldflags "-X main.mclVersion=$VERSION" -o mcl
+
+      - name: Read release notes
+        id: notes
+        run: |
+          NOTES_FILE="releases/${VERSION}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            echo "release_body<<EOF" >> $GITHUB_OUTPUT
+            cat "$NOTES_FILE" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "release_body=No release notes found." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.VERSION }}
+          release_name: Release ${{ env.VERSION }}
+          body: ${{ steps.notes.outputs.release_body }}
+          draft: false
+          prerelease: false
+
+      - name: Upload binary to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./mcl
+          asset_name: mcl
+          asset_content_type: application/octet-stream
+
+      - name: Calculate SHA256
+        id: sha256
+        run: |
+          SHA256=$(sha256sum mcl | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew Formula
+        run: |
+          FORMULA_REPO="masuldev/homebrew-mcl"
+          FORMULA_FILE="Formula/mcl.rb"
+          git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${FORMULA_REPO}.git taprepo
+          cd taprepo
+          cat > $FORMULA_FILE <<EOF
+          class Mcl < Formula
+            desc "My CLI for AWS"
+            homepage "https://github.com/masuldev/mcl"
+            url "https://github.com/masuldev/mcl/releases/download/${VERSION}/mcl"
+            sha256 "${SHA256}"
+            version "${VERSION#v}"
+
+            def install
+              bin.install "mcl"
+            end
+
+            test do
+              system "#{bin}/mcl", "--version"
+            end
+          end
+          EOF
+          git config user.name "masuldev"
+          git config user.email "masuldev@gmail.com"
+          git add $FORMULA_FILE
+          git commit -m "Update mcl formula for ${VERSION}"
+          git push origin main
+
+      - name: Delete branch after successful release
+        run: |
+          git push origin --delete ${{ env.VERSION }}
+        if: success() 
