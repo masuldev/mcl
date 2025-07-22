@@ -28,32 +28,15 @@ jobs:
         run: |
           go build -ldflags "-X main.mclVersion=$VERSION" -o mcl
 
-      - name: Read release notes
-        id: notes
-        run: |
-          NOTES_FILE="releases/${VERSION}.md"
-          if [ -f "$NOTES_FILE" ]; then
-            {
-              echo "release_body<<EOF"
-              cat "$NOTES_FILE"
-              echo "EOF"
-            } > tmp_output
-            cat tmp_output >> $GITHUB_OUTPUT
-          else
-            echo "release_body=No release notes found." >> $GITHUB_OUTPUT
-          fi
-
       - name: Create GitHub Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.VERSION }}
-          release_name: Release ${{ env.VERSION }}
-          body: ${{ steps.notes.outputs.release_body }}
-          draft: false
-          prerelease: false
+          name: Release ${{ env.VERSION }}
+          body_path: releases/${{ env.VERSION }}.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload binary to release
         uses: actions/upload-release-asset@v1
