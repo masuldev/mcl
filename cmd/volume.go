@@ -3,11 +3,13 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 	"github.com/masuldev/mcl/internal"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"strings"
 )
 
 type (
@@ -62,23 +64,46 @@ var (
 			switch argFunction {
 			case "check":
 				{
-					targets, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					instancesWithHighUsage, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(ctx, instances, bastionClient, ThresholdPercentage)
 					if err != nil {
-						internal.RealPanic(internal.WrapError(err))
+						internal.RealPanic(err)
 					}
 
-					if len(targets) == 0 {
-						fmt.Println("EBS volumes checked and expanded if necessary")
+					if len(instancesWithHighUsage) == 0 {
+						fmt.Println(color.GreenString("✓ All volumes are within the threshold"))
 						return
 					}
 
-					for _, target := range targets {
+					fmt.Println(color.YellowString("임계치(%d%%) 초과 인스턴스:", ThresholdPercentage))
+					for _, target := range instancesWithHighUsage {
 						internal.PrintVolumeCheck("volume", target.Id, target.Name, target.PrivateIp, instanceUsageMapping[target])
+					}
+
+					var doExpand bool
+					prompt := &survey.Confirm{
+						Message: "임계치 초과 인스턴스가 있습니다. 바로 볼륨 확장(Expand)을 진행하시겠습니까?",
+						Default: false,
+					}
+					if err := survey.AskOne(prompt, &doExpand); err != nil {
+						internal.RealPanic(err)
+					}
+
+					if doExpand {
+						volumes, err := internal.ExpandAndModifyVolumes(ctx, *credential.awsConfig, instances, instancesWithHighUsage, IncrementPercentage, bastionClient)
+						if err != nil {
+							internal.RealPanic(err)
+						}
+						fmt.Println(color.GreenString("=== Expanded Volumes ==="))
+						for _, volume := range volumes {
+							internal.PrintVolumeExpand("volume", volume.Instance.Id, volume.Instance.Name, volume.Volume.Id, volume.Volume.Size, volume.Volume.NewSize)
+						}
+					} else {
+						fmt.Println(color.YellowString("확장 작업을 취소했습니다."))
 					}
 				}
 			case "expand":
 				{
-					targets, _, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					targets, _, err := internal.GetInstancesWithHighUsage(ctx, instances, bastionClient, ThresholdPercentage)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}
@@ -94,7 +119,7 @@ var (
 				}
 			default:
 				{
-					targets, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(instances, bastionClient, ThresholdPercentage)
+					targets, instanceUsageMapping, err := internal.GetInstancesWithHighUsage(ctx, instances, bastionClient, ThresholdPercentage)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}

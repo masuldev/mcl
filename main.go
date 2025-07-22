@@ -11,6 +11,9 @@ import (
 var mclVersion string
 
 func main() {
+	// 프로그램 종료 시 SSH 연결 풀 정리
+	defer internal.CleanupSSHConnections()
+
 	// 새로운 AWS 인증 시스템 초기화
 	auth, err := internal.NewAwsAuth()
 	if err != nil {

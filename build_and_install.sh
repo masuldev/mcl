@@ -60,7 +60,7 @@ BUILD_DIR="./dist"
 mkdir -p "$BUILD_DIR"
 
 # 현재 시간을 버전으로 사용
-VERSION=$(date +"%Y%m%d_%H%M%S")
+VERSION="v1.1.4"
 
 # 빌드 실행
 log_info "바이너리 빌드 중..."

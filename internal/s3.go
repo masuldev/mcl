@@ -208,3 +208,46 @@ func PrintS3Object(service, region, bucketName, objectKey, size, lastModified st
 	color.Cyan("size: %s", size)
 	color.Cyan("last modified: %s", lastModified)
 }
+
+// 페이징을 지원하는 S3 버킷 조회
+func FindS3BucketsWithPaging(ctx context.Context, cfg aws.Config, page int) ([]*S3Bucket, error) {
+	client := s3.NewFromConfig(cfg)
+	var buckets []*S3Bucket
+
+	output, err := client.ListBuckets(ctx, &s3.ListBucketsInput{})
+	if err != nil {
+		return nil, WrapError(err)
+	}
+
+	// 페이지 계산
+	startIndex := (page - 1) * maxS3OutputResults
+	endIndex := startIndex + maxS3OutputResults
+
+	if startIndex >= len(output.Buckets) {
+		return buckets, nil
+	}
+
+	if endIndex > len(output.Buckets) {
+		endIndex = len(output.Buckets)
+	}
+
+	// 해당 페이지의 버킷들만 처리
+	for i := startIndex; i < endIndex; i++ {
+		bucket := output.Buckets[i]
+
+		// 버킷의 리전 확인
+		region, err := getBucketRegion(ctx, client, aws.ToString(bucket.Name))
+		if err != nil {
+			// 리전 확인 실패 시 기본 리전 사용
+			region = cfg.Region
+		}
+
+		buckets = append(buckets, &S3Bucket{
+			Name:         aws.ToString(bucket.Name),
+			CreationDate: aws.ToTime(bucket.CreationDate),
+			Region:       region,
+		})
+	}
+
+	return buckets, nil
+}

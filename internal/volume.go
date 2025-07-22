@@ -3,12 +3,13 @@ package internal
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"golang.org/x/crypto/ssh"
-	"sync"
-	"time"
 )
 
 type (
@@ -26,22 +27,69 @@ type (
 	}
 )
 
-const maxBatchSize = 199
+const (
+	maxBatchSize = 199
+)
 
+// 객체 풀링을 위한 구조체
+type VolumeProcessor struct {
+	volumeTablePool sync.Pool
+	instanceIdsPool sync.Pool
+	volumeIdsPool   sync.Pool
+}
+
+// 전역 프로세서 인스턴스
+var volumeProcessor = &VolumeProcessor{
+	volumeTablePool: sync.Pool{
+		New: func() interface{} {
+			return make(map[string]*TargetVolume)
+		},
+	},
+	instanceIdsPool: sync.Pool{
+		New: func() interface{} {
+			return make([]string, 0, 100)
+		},
+	},
+	volumeIdsPool: sync.Pool{
+		New: func() interface{} {
+			return make([]string, 0, 1000)
+		},
+	},
+}
+
+// 메모리 최적화된 볼륨 조회 함수
 func FindVolume(ctx context.Context, cfg aws.Config, instanceIds []string) (map[string]*TargetVolume, error) {
 	client := ec2.NewFromConfig(cfg)
-	volumeTable := make(map[string]*TargetVolume)
 
+	// 객체 풀에서 재사용
+	volumeTable := volumeProcessor.volumeTablePool.Get().(map[string]*TargetVolume)
+	defer func() {
+		// 맵 초기화 후 풀에 반환
+		for k := range volumeTable {
+			delete(volumeTable, k)
+		}
+		volumeProcessor.volumeTablePool.Put(volumeTable)
+	}()
+
+	// 인스턴스 ID 집합 생성 (메모리 효율적)
 	instanceIdSet := make(map[string]struct{}, len(instanceIds))
 	for _, id := range instanceIds {
 		instanceIdSet[id] = struct{}{}
 	}
+
+	// 볼륨 ID 조회
+	volumeIds := volumeProcessor.volumeIdsPool.Get().([]string)
+	defer func() {
+		volumeIds = volumeIds[:0] // 슬라이스 재사용
+		volumeProcessor.volumeIdsPool.Put(volumeIds)
+	}()
 
 	allVolumeIds, err := FindVolumes(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
 
+	// 배치 처리로 메모리 사용량 최적화
 	for i := 0; i < len(allVolumeIds); i += maxBatchSize {
 		end := i + maxBatchSize
 		if end > len(allVolumeIds) {
@@ -61,6 +109,7 @@ func FindVolume(ctx context.Context, cfg aws.Config, instanceIds []string) (map[
 			return nil, err
 		}
 
+		// 볼륨 정보 처리
 		for _, vol := range output.Volumes {
 			if len(vol.Attachments) > 0 {
 				attachment := vol.Attachments[0]
@@ -77,12 +126,25 @@ func FindVolume(ctx context.Context, cfg aws.Config, instanceIds []string) (map[
 		}
 	}
 
-	return volumeTable, nil
+	// 결과 복사 (풀에서 반환되기 전에)
+	result := make(map[string]*TargetVolume, len(volumeTable))
+	for k, v := range volumeTable {
+		result[k] = v
+	}
+
+	return result, nil
 }
 
+// 메모리 최적화된 볼륨 ID 조회
 func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
 	client := ec2.NewFromConfig(cfg)
-	var volumeIds []string
+
+	// 객체 풀에서 재사용
+	volumeIds := volumeProcessor.volumeIdsPool.Get().([]string)
+	defer func() {
+		volumeIds = volumeIds[:0]
+		volumeProcessor.volumeIdsPool.Put(volumeIds)
+	}()
 
 	paginator := ec2.NewDescribeVolumesPaginator(client, &ec2.DescribeVolumesInput{
 		MaxResults: aws.Int32(maxOutputResults),
@@ -98,15 +160,19 @@ func FindVolumes(ctx context.Context, cfg aws.Config) ([]string, error) {
 		}
 	}
 
-	return volumeIds, nil
+	// 결과 복사
+	result := make([]string, len(volumeIds))
+	copy(result, volumeIds)
+	return result, nil
 }
 
+// 메모리 최적화된 볼륨 확장
 func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*TargetVolume, incrementPercentage int) ([]*TargetVolume, error) {
-	var (
-		expandedVolumes []*TargetVolume
-		client          = ec2.NewFromConfig(cfg)
-		errList         []error
-	)
+	client := ec2.NewFromConfig(cfg)
+
+	// 슬라이스 사전 할당으로 메모리 재할당 방지
+	expandedVolumes := make([]*TargetVolume, 0, len(volumes))
+	var errList []error
 
 	for _, volume := range volumes {
 		currentSize := volume.Size
@@ -140,6 +206,7 @@ func ExpandVolume(ctx context.Context, cfg aws.Config, volumes map[string]*Targe
 	return expandedVolumes, retErr
 }
 
+// 컨텍스트 취소 지원 개선된 볼륨 대기 함수
 func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId string) error {
 	describeInput := &ec2.DescribeVolumesModificationsInput{
 		VolumeIds: []string{volumeId},
@@ -163,13 +230,21 @@ func waitUntilVolumeAvailable(ctx context.Context, client *ec2.Client, volumeId 
 	}
 }
 
+// 메모리 최적화된 볼륨 확장 및 수정
 func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances map[string]*Target, targets []*Target, incrementPercentage int, bastionClient *ssh.Client) ([]VolumeInstanceMapping, error) {
-	instanceLookup := make(map[string]*Target)
+	// 인스턴스 룩업 맵 생성 (메모리 효율적)
+	instanceLookup := make(map[string]*Target, len(instances))
 	for _, instance := range instances {
 		instanceLookup[instance.Id] = instance
 	}
 
-	var instanceIds []string
+	// 인스턴스 ID 슬라이스 생성 (객체 풀 사용)
+	instanceIds := volumeProcessor.instanceIdsPool.Get().([]string)
+	defer func() {
+		instanceIds = instanceIds[:0]
+		volumeProcessor.instanceIdsPool.Put(instanceIds)
+	}()
+
 	for _, target := range targets {
 		instanceIds = append(instanceIds, target.Id)
 	}
@@ -184,7 +259,8 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 		PrintError(err)
 	}
 
-	var volumeInstanceMappings []*VolumeInstanceMapping
+	// 볼륨 인스턴스 매핑 생성 (사전 할당)
+	volumeInstanceMappings := make([]*VolumeInstanceMapping, 0, len(expandedVolumes))
 	for _, volume := range expandedVolumes {
 		if instance, ok := instanceLookup[volume.InstanceId]; ok {
 			volumeInstanceMappings = append(volumeInstanceMappings, &VolumeInstanceMapping{
@@ -194,19 +270,29 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 		}
 	}
 
-	var volumeInstances []VolumeInstanceMapping
+	// 결과 슬라이스 사전 할당
+	volumeInstances := make([]VolumeInstanceMapping, 0, len(volumeInstanceMappings))
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, 20)
 	var mu sync.Mutex
+
+	// 컨텍스트 취소 지원
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	defer cancel()
 
 	for _, mapping := range volumeInstanceMappings {
 		wg.Add(1)
 		go func(mapping *VolumeInstanceMapping) {
 			defer wg.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
 
-			_, err = ModifyLinuxVolumeWithTimeout(func(bastion *ssh.Client, volume *TargetVolume, instance *Target) (string, error) {
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				return
+			}
+
+			_, err = ModifyLinuxVolumeWithTimeout(ctx, func(bastion *ssh.Client, volume *TargetVolume, instance *Target) (string, error) {
 				return ModifyLinuxVolume(bastion, mapping.Volume, mapping.Instance)
 			}, 10*time.Second, bastionClient, mapping.Volume, mapping.Instance)
 			if err != nil {
@@ -219,7 +305,21 @@ func ExpandAndModifyVolumes(ctx context.Context, awsConfig aws.Config, instances
 			mu.Unlock()
 		}(mapping)
 	}
-	wg.Wait()
+
+	// 컨텍스트 취소 대기
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// 정상 완료
+	case <-ctx.Done():
+		// 타임아웃 또는 취소
+		return volumeInstances, fmt.Errorf("operation cancelled or timed out")
+	}
 
 	return volumeInstances, nil
 }

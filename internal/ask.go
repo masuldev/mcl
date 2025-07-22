@@ -3,11 +3,12 @@ package internal
 import (
 	"context"
 	"fmt"
+	"sort"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/fatih/color"
-	"sort"
 )
 
 const (
@@ -200,6 +201,8 @@ func PrintVolumeCheck(cmd, instanceId, instanceName, instanceIp string, usage in
 	fmt.Printf("%s: instance id: %s, instance name: %s,  instance ip: %s, usage: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName), color.MagentaString(instanceIp), color.GreenString("%d", usage))
 }
 
-func PrintVolumeExpand(cmd, instanceId, instanceName, volumeId string, size int32, newSize int64) {
-	fmt.Printf("%s: instance id: %s, instance name: %s, volume id: %s, size: %s, newSize: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName), color.YellowString(volumeId), color.BlueString("%d", size), color.BlueString("%d", newSize))
+func PrintVolumeExpand(cmd, instanceId, instanceName, volumeId string, oldSize int32, newSize int64) {
+	fmt.Printf("%s: instance id: %s, instance name: %s, volume id: %s, old size: %d GB, new size: %d GB\n",
+		color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName),
+		color.YellowString(volumeId), oldSize, newSize)
 }

@@ -65,10 +65,10 @@ func GetGlobalAwsConfig() *aws.Config {
 
 // 전역 Region 반환
 func GetGlobalRegion() string {
-	if credential == nil || credential.awsConfig == nil {
-		return ""
+	if credential != nil && credential.awsConfig != nil {
+		return credential.awsConfig.Region
 	}
-	return credential.awsConfig.Region
+	return ""
 }
 
 func init() {
