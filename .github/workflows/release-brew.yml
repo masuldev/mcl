@@ -33,9 +33,11 @@ jobs:
         run: |
           NOTES_FILE="releases/${VERSION}.md"
           if [ -f "$NOTES_FILE" ]; then
-            echo "release_body<<EOF" >> $GITHUB_OUTPUT
-            cat "$NOTES_FILE" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            {
+              echo "release_body<<EOF"
+              cat "$NOTES_FILE"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
           else
             echo "release_body=No release notes found." >> $GITHUB_OUTPUT
           fi
