@@ -71,7 +71,7 @@ jobs:
       - name: Update Homebrew Formula
         run: |
           FORMULA_REPO="masuldev/homebrew-mcl"
-          FORMULA_FILE="Formula/mcl.rb"
+          FORMULA_FILE="mcl.rb"
           git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${FORMULA_REPO}.git taprepo
           cd taprepo
           cat > $FORMULA_FILE <<EOF
