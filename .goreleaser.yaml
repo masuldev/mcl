@@ -1,0 +1,53 @@
+project_name: mcl
+
+dist: dist
+
+builds:
+  - id: mcl
+    main: ./main.go
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -X main.mclVersion={{.Version}}
+    env:
+      - CGO_ENABLED=0
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+brews:
+  - name: mcl
+    tap:
+      owner: masuldev
+      name: homebrew-mcl
+    commit_author:
+      name: masuldev
+      email: masuldev@gmail.com
+    homepage: "https://github.com/masuldev/mcl"
+    description: "My CLI for AWS"
+    test: |
+      system "#{bin}/mcl", "--version"
+    install: |
+      bin.install "mcl"
+    plist: ""
+    caveats: ""
+    dependencies: []
+    conflicts: []
+    skip_upload: false
+
+release:
+  github:
+    owner: masuldev
+    name: mcl 
