@@ -29,7 +29,7 @@ checksum:
 
 brews:
   - name: mcl
-    tap:
+    repository:
       owner: masuldev
       name: homebrew-mcl
     commit_author:
