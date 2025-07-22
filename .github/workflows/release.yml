@@ -23,10 +23,13 @@ jobs:
           version: latest
 
       - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-        run: goreleaser release --clean
 
       - name: Add release notes from file
         uses: softprops/action-gh-release@v1
