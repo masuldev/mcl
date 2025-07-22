@@ -72,7 +72,7 @@ jobs:
         run: |
           FORMULA_REPO="masuldev/homebrew-mcl"
           FORMULA_FILE="mcl.rb"
-          git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${FORMULA_REPO}.git taprepo
+          git clone --depth 1 https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/${FORMULA_REPO}.git taprepo
           cd taprepo
           cat > $FORMULA_FILE <<EOF
           class Mcl < Formula
