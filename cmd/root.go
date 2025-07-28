@@ -35,10 +35,17 @@ var (
 func Execute(version string) {
 	rootCmd.Version = version
 
-	// --version 플래그만 입력된 경우 버전만 출력하고 종료
-	if len(os.Args) == 2 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Println(version)
-		return
+	// credential을 요구하지 않는 명령어들 확인
+	if len(os.Args) >= 2 {
+		arg := os.Args[1]
+		if arg == "--version" || arg == "-v" || arg == "--help" || arg == "-h" {
+			// credential 없이 실행
+			err := rootCmd.Execute()
+			if err != nil {
+				internal.RealPanic(err)
+			}
+			return
+		}
 	}
 
 	err := rootCmd.Execute()

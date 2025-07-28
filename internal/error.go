@@ -3,20 +3,20 @@ package internal
 import (
 	"errors"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/masuldev/merrwrap"
 	"os"
 	"runtime"
 	"strings"
+
+	"github.com/masuldev/merrwrap"
 )
 
 func RealPanic(err error) {
-	fmt.Println(color.RedString("err: %s", err.Error()))
+	LogError("err: %s", err.Error())
 	os.Exit(1)
 }
 
 func PrintError(err error) {
-	fmt.Println(color.RedString("err: %s", err.Error()))
+	LogError("err: %s", err.Error())
 }
 
 func WrapError(err error) error {

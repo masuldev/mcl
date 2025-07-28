@@ -8,7 +8,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/fatih/color"
 )
 
 type (
@@ -194,19 +193,11 @@ func FormatBytes(bytes int64) string {
 }
 
 func PrintS3Bucket(service, region, bucketName, creationDate string) {
-	color.Cyan("service: %s", service)
-	color.Cyan("region: %s", region)
-	color.Cyan("bucket: %s", bucketName)
-	color.Cyan("created: %s", creationDate)
+	LogS3Bucket(service, region, bucketName, creationDate)
 }
 
 func PrintS3Object(service, region, bucketName, objectKey, size, lastModified string) {
-	color.Cyan("service: %s", service)
-	color.Cyan("region: %s", region)
-	color.Cyan("bucket: %s", bucketName)
-	color.Cyan("object: %s", objectKey)
-	color.Cyan("size: %s", size)
-	color.Cyan("last modified: %s", lastModified)
+	LogS3Object(service, region, bucketName, objectKey, size, lastModified)
 }
 
 // 페이징을 지원하는 S3 버킷 조회

@@ -7,8 +7,113 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fatih/color"
 	"golang.org/x/crypto/ssh"
 )
+
+// 로깅 스타일 상수
+const (
+	IconSuccess = "✓"
+	IconWarning = "⚠️"
+	IconError   = "❌"
+	IconInfo    = "ℹ️"
+)
+
+// Success 메시지 출력
+func LogSuccess(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	color.Green("%s %s", IconSuccess, message)
+}
+
+// Warning 메시지 출력
+func LogWarning(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	color.Yellow("%s %s", IconWarning, message)
+}
+
+// Error 메시지 출력
+func LogError(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	color.Red("%s %s", IconError, message)
+}
+
+// Info 메시지 출력
+func LogInfo(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+	color.Cyan("%s %s", IconInfo, message)
+}
+
+// AWS 서비스 로그 출력 (일관된 형식)
+func LogAwsService(cmd, region, name, id string, additional ...string) {
+	base := fmt.Sprintf("%s: region: %s, name: %s, id: %s",
+		color.CyanString(cmd),
+		color.YellowString(region),
+		color.YellowString(name),
+		color.YellowString(id))
+
+	if len(additional) > 0 {
+		base += ", " + additional[0]
+	}
+
+	fmt.Println(base)
+}
+
+// AWS 서비스 상세 로그 출력
+func LogAwsServiceDetail(cmd, region, name, id, endpoint, status, engine string) {
+	fmt.Printf("%s: region: %s, name: %s, id: %s, endpoint: %s, status: %s, engine: %s\n",
+		color.CyanString(cmd), color.YellowString(region), color.YellowString(name),
+		color.YellowString(id), color.BlueString(endpoint), color.GreenString(status),
+		color.MagentaString(engine))
+}
+
+// EC2 인스턴스 로그 출력
+func LogEC2Instance(cmd, region, name, id, publicIp, privateIp string) {
+	fmt.Printf("%s: region: %s, name: %s, id: %s, publicIp: %s, privateIp: %s\n",
+		color.CyanString(cmd), color.YellowString(region), color.YellowString(name),
+		color.YellowString(id), color.BlueString(publicIp), color.BlueString(privateIp))
+}
+
+// 볼륨 사용량 로그 출력
+func LogVolumeUsage(cmd, instanceId, instanceName, instanceIp string, usage int) {
+	fmt.Printf("%s: instance id: %s, instance name: %s, instance ip: %s, usage: %s\n",
+		color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName),
+		color.MagentaString(instanceIp), color.GreenString("%d%%", usage))
+}
+
+// 볼륨 확장 로그 출력
+func LogVolumeExpansion(cmd, instanceId, instanceName, volumeId string, oldSize, newSize int) {
+	fmt.Printf("%s: instance id: %s, instance name: %s, volume id: %s, old size: %d GB, new size: %d GB\n",
+		color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName),
+		color.YellowString(volumeId), oldSize, newSize)
+}
+
+// CloudFront 배포 로그 출력
+func LogCloudFrontDistribution(cmd, region, name, domain, aliasInfo, status, comment string) {
+	fmt.Printf("%s: region: %s, name: %s, domain: %s%s, status: %s, comment: %s\n",
+		color.CyanString(cmd), color.YellowString(region), color.YellowString(name),
+		color.BlueString(domain), color.CyanString(aliasInfo), color.GreenString(status),
+		color.MagentaString(comment))
+}
+
+// CloudFront 무효화 로그 출력
+func LogCloudFrontInvalidation(cmd, distributionId string) {
+	fmt.Printf("%s: distribution id: %s, invalidation: /*\n",
+		color.CyanString(cmd), color.YellowString(distributionId))
+}
+
+// S3 버킷 로그 출력
+func LogS3Bucket(cmd, region, bucketName, creationDate string) {
+	fmt.Printf("%s: region: %s, bucket: %s, created: %s\n",
+		color.CyanString(cmd), color.YellowString(region), color.BlueString(bucketName),
+		color.GreenString(creationDate))
+}
+
+// S3 객체 로그 출력
+func LogS3Object(cmd, region, bucketName, objectKey, size, lastModified string) {
+	fmt.Printf("%s: region: %s, bucket: %s, object: %s, size: %s, last modified: %s\n",
+		color.CyanString(cmd), color.YellowString(region), color.BlueString(bucketName),
+		color.CyanString(objectKey), color.GreenString(size), color.MagentaString(lastModified))
+}
 
 func GetVolumeUsageWithTimeout(ctx context.Context, f func(bastion *ssh.Client, target *Target) (int, error), timeout time.Duration, bastion *ssh.Client, target *Target) (int, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)

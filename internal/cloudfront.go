@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
-	"github.com/fatih/color"
 )
 
 type (
@@ -149,15 +148,11 @@ func PrintCloudFront(cmd, region, name, id, domain, status, comment string, alia
 		aliasInfo = fmt.Sprintf(", additional aliases: %s", strings.Join(aliases[1:], ", "))
 	}
 
-	fmt.Printf("%s: region: %s, name: %s, domain: %s%s, status: %s, comment: %s\n",
-		color.CyanString(cmd), color.YellowString(region), color.YellowString(displayName),
-		color.BlueString(primaryDomain), color.CyanString(aliasInfo), color.GreenString(status),
-		color.MagentaString(comment))
+	LogCloudFrontDistribution(cmd, region, displayName, primaryDomain, aliasInfo, status, comment)
 }
 
 func PrintCloudFrontInvalidation(cmd, distributionId string) {
-	fmt.Printf("%s: distribution id: %s, invalidation: /*\n",
-		color.CyanString(cmd), color.YellowString(distributionId))
+	LogCloudFrontInvalidation(cmd, distributionId)
 }
 
 // 페이징을 지원하는 CloudFront 배포 조회

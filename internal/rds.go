@@ -7,7 +7,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/fatih/color"
 )
 
 type (
@@ -107,10 +106,7 @@ func AskRdsTarget(ctx context.Context, cfg aws.Config) (*RdsTarget, error) {
 }
 
 func PrintRds(cmd, region, name, id, endpoint, status, engine string) {
-	fmt.Printf("%s: region: %s, name: %s, id: %s, endpoint: %s, status: %s, engine: %s\n",
-		color.CyanString(cmd), color.YellowString(region), color.YellowString(name),
-		color.YellowString(id), color.BlueString(endpoint), color.GreenString(status),
-		color.MagentaString(engine))
+	LogAwsServiceDetail(cmd, region, name, id, endpoint, status, engine)
 }
 
 // 페이징을 지원하는 RDS 인스턴스 조회

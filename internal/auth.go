@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/fatih/color"
 )
 
 type AuthMethod string
@@ -85,7 +84,7 @@ func (a *AwsAuth) initFromEnv() (*AwsAuth, error) {
 	a.Config = cfg
 	a.Region = cfg.Region
 
-	color.Green("✓ Using AWS credentials from environment variables")
+	LogSuccess("Using AWS credentials from environment variables")
 	return a, nil
 }
 
@@ -154,13 +153,13 @@ func (a *AwsAuth) initFromLocal() (*AwsAuth, error) {
 	a.Profile = selectedProfile.Name
 	a.Region = cfg.Region
 
-	color.Green("✓ Using AWS profile: %s (region: %s)", selectedProfile.Name, a.Region)
+	LogSuccess("Using AWS profile: %s (region: %s)", selectedProfile.Name, a.Region)
 	return a, nil
 }
 
 // 인터랙티브 초기화 (인증 정보가 없는 경우)
 func (a *AwsAuth) initInteractive() (*AwsAuth, error) {
-	color.Yellow("⚠️  No AWS credentials found")
+	LogWarning("No AWS credentials found")
 	fmt.Println("Please provide AWS credentials:")
 
 	var accessKey, secretKey, region string
@@ -200,7 +199,7 @@ func (a *AwsAuth) initInteractive() (*AwsAuth, error) {
 	a.Config = cfg
 	a.Region = region
 
-	color.Green("✓ Using manually entered AWS credentials")
+	LogSuccess("Using manually entered AWS credentials")
 	return a, nil
 }
 

@@ -7,7 +7,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
-	"github.com/fatih/color"
 )
 
 type (
@@ -149,8 +148,5 @@ func AskElastiCacheTarget(ctx context.Context, cfg aws.Config) (*ElastiCacheTarg
 }
 
 func PrintElastiCache(cmd, region, name, id, endpoint, status, engine string, port int32) {
-	fmt.Printf("%s: region: %s, name: %s, id: %s, endpoint: %s:%d, status: %s, engine: %s\n",
-		color.CyanString(cmd), color.YellowString(region), color.YellowString(name),
-		color.YellowString(id), color.BlueString(endpoint), port, color.GreenString(status),
-		color.MagentaString(engine))
+	LogAwsServiceDetail(cmd, region, name, id, fmt.Sprintf("%s:%d", endpoint, port), status, engine)
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/fatih/color"
 )
 
 const (
@@ -194,15 +193,13 @@ func AskVolume(ctx context.Context, cfg aws.Config) (*Function, error) {
 }
 
 func PrintEc2(cmd, region, name, id, publicIp, privateIp string) {
-	fmt.Printf("%s: region: %s, name: %s, id: %s, publicIp: %s, privateIp: %s\n", color.CyanString(cmd), color.YellowString(region), color.YellowString(name), color.YellowString(id), color.BlueString(publicIp), color.BlueString(privateIp))
+	LogEC2Instance(cmd, region, name, id, publicIp, privateIp)
 }
 
 func PrintVolumeCheck(cmd, instanceId, instanceName, instanceIp string, usage int) {
-	fmt.Printf("%s: instance id: %s, instance name: %s,  instance ip: %s, usage: %s\n", color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName), color.MagentaString(instanceIp), color.GreenString("%d", usage))
+	LogVolumeUsage(cmd, instanceId, instanceName, instanceIp, usage)
 }
 
 func PrintVolumeExpand(cmd, instanceId, instanceName, volumeId string, oldSize int32, newSize int64) {
-	fmt.Printf("%s: instance id: %s, instance name: %s, volume id: %s, old size: %d GB, new size: %d GB\n",
-		color.CyanString(cmd), color.YellowString(instanceId), color.YellowString(instanceName),
-		color.YellowString(volumeId), oldSize, newSize)
+	LogVolumeExpansion(cmd, instanceId, instanceName, volumeId, int(oldSize), int(newSize))
 }

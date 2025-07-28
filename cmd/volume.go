@@ -70,11 +70,11 @@ var (
 					}
 
 					if len(instancesWithHighUsage) == 0 {
-						fmt.Println(color.GreenString("✓ All volumes are within the threshold"))
+						internal.LogSuccess("All volumes are within the threshold")
 						return
 					}
 
-					fmt.Println(color.YellowString("임계치(%d%%) 초과 인스턴스:", ThresholdPercentage))
+					internal.LogWarning("임계치(%d%%) 초과 인스턴스:", ThresholdPercentage)
 					for _, target := range instancesWithHighUsage {
 						internal.PrintVolumeCheck("volume", target.Id, target.Name, target.PrivateIp, instanceUsageMapping[target])
 					}
@@ -93,12 +93,12 @@ var (
 						if err != nil {
 							internal.RealPanic(err)
 						}
-						fmt.Println(color.GreenString("=== Expanded Volumes ==="))
+						internal.LogSuccess("=== Expanded Volumes ===")
 						for _, volume := range volumes {
 							internal.PrintVolumeExpand("volume", volume.Instance.Id, volume.Instance.Name, volume.Volume.Id, volume.Volume.Size, volume.Volume.NewSize)
 						}
 					} else {
-						fmt.Println(color.YellowString("확장 작업을 취소했습니다."))
+						internal.LogWarning("확장 작업을 취소했습니다.")
 					}
 				}
 			case "expand":
@@ -125,7 +125,7 @@ var (
 					}
 
 					if len(targets) == 0 {
-						fmt.Println("EBS volumes checked and expanded if necessary")
+						internal.LogSuccess("EBS volumes checked and expanded if necessary")
 						return
 					}
 
