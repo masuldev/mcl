@@ -16,10 +16,7 @@ var (
 		Short: "Exec `ec2 list` under AWS with interactive CLI",
 		Long:  "Exec `ec2 list` under AWS with interactive CLI",
 		Run: func(cmd *cobra.Command, args []string) {
-			var (
-				target *internal.Target
-				err    error
-			)
+			var target *internal.Target
 			ctx := context.Background()
 
 			// 전역 AWS Config 사용
@@ -58,6 +55,7 @@ var (
 			}
 
 			if target == nil {
+				var err error
 				target, err = internal.AskTarget(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(err)

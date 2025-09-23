@@ -2,9 +2,7 @@ package internal
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 )
@@ -70,39 +68,6 @@ func FindDBInstancesIds(ctx context.Context, cfg aws.Config) ([]string, error) {
 		ids = append(ids, target.Id)
 	}
 	return ids, nil
-}
-
-func AskRdsTarget(ctx context.Context, cfg aws.Config) (*RdsTarget, error) {
-	table, err := FindRdsInstance(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	displayMap := make(map[string]*RdsTarget, len(table))
-	options := make([]string, 0, len(table))
-	for _, target := range table {
-		option := fmt.Sprintf("%s (%s) - %s", target.Name, target.Id, target.Engine)
-		options = append(options, option)
-		displayMap[option] = target
-	}
-
-	if len(options) == 0 {
-		return nil, fmt.Errorf("RDS 인스턴스를 찾을 수 없습니다")
-	}
-
-	prompt := &survey.Select{
-		Message: "RDS 인스턴스를 선택하세요:",
-		Options: options,
-	}
-
-	selectKey := ""
-	if err := survey.AskOne(prompt, &selectKey, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.SelectFocus.Format = "green+hb"
-	}), survey.WithPageSize(20)); err != nil {
-		return nil, err
-	}
-
-	return displayMap[selectKey], nil
 }
 
 func PrintRds(cmd, region, name, id, endpoint, status, engine string) {

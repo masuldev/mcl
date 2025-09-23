@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/masuldev/mcl/internal"
+	"github.com/masuldev/mcl/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -46,12 +46,10 @@ var ssmCmd = &cobra.Command{
 			options = append(options, label)
 			idToInstance[label] = inst
 		}
-		var selected string
-		prompt := &survey.Select{
-			Message: "SSM으로 접속할 인스턴스를 선택하세요:",
-			Options: options,
-		}
-		if err := survey.AskOne(prompt, &selected); err != nil {
+
+		promptService := ui.GetDefault()
+		selected, err := promptService.Select(ctx, "SSM으로 접속할 인스턴스를 선택하세요:", options)
+		if err != nil {
 			internal.RealPanic(err)
 		}
 		inst := idToInstance[selected]

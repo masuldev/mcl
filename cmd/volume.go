@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 	"github.com/masuldev/mcl/internal"
+	"github.com/masuldev/mcl/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -46,12 +46,18 @@ var (
 				ThresholdPercentage = 80
 			}
 
-			bastion, err := internal.AskBastion(ctx, *credential.awsConfig)
+			// 전역 AWS Config 사용
+			awsConfig := GetGlobalAwsConfig()
+			if awsConfig == nil {
+				internal.RealPanic(fmt.Errorf("AWS config not initialized"))
+			}
+
+			bastion, err := internal.AskBastion(ctx, *awsConfig)
 			if err != nil {
 				internal.RealPanic(internal.WrapError(err))
 			}
 
-			instances, err := internal.FindInstance(ctx, *credential.awsConfig)
+			instances, err := internal.FindInstance(ctx, *awsConfig)
 			if err != nil {
 				internal.RealPanic(internal.WrapError(err))
 			}
@@ -79,17 +85,14 @@ var (
 						internal.PrintVolumeCheck("volume", target.Id, target.Name, target.PrivateIp, instanceUsageMapping[target])
 					}
 
-					var doExpand bool
-					prompt := &survey.Confirm{
-						Message: "임계치 초과 인스턴스가 있습니다. 바로 볼륨 확장(Expand)을 진행하시겠습니까?",
-						Default: false,
-					}
-					if err := survey.AskOne(prompt, &doExpand); err != nil {
+					promptService := ui.GetDefault()
+					doExpand, err := promptService.Confirm(ctx, "임계치 초과 인스턴스가 있습니다. 바로 볼륨 확장(Expand)을 진행하시겠습니까?")
+					if err != nil {
 						internal.RealPanic(err)
 					}
 
 					if doExpand {
-						volumes, err := internal.ExpandAndModifyVolumes(ctx, *credential.awsConfig, instances, instancesWithHighUsage, IncrementPercentage, bastionClient)
+						volumes, err := internal.ExpandAndModifyVolumes(ctx, *awsConfig, instances, instancesWithHighUsage, IncrementPercentage, bastionClient)
 						if err != nil {
 							internal.RealPanic(err)
 						}
@@ -108,7 +111,7 @@ var (
 						internal.RealPanic(internal.WrapError(err))
 					}
 
-					volumes, err := internal.ExpandAndModifyVolumes(ctx, *credential.awsConfig, instances, targets, IncrementPercentage, bastionClient)
+					volumes, err := internal.ExpandAndModifyVolumes(ctx, *awsConfig, instances, targets, IncrementPercentage, bastionClient)
 					if err != nil {
 						internal.RealPanic(internal.WrapError(err))
 					}

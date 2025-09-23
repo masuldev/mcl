@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/masuldev/mcl/internal/ui"
 )
 
 type AuthMethod string
@@ -101,36 +101,25 @@ func (a *AwsAuth) initFromLocal() (*AwsAuth, error) {
 
 	// 인터랙티브 선택
 	var options []string
+	profileMap := make(map[string]AwsProfile, len(profiles))
+
 	for _, p := range profiles {
 		label := p.Name
 		if p.Region != "" {
 			label = fmt.Sprintf("%s (%s)", p.Name, p.Region)
 		}
 		options = append(options, label)
+		profileMap[label] = p
 	}
 
-	var selected string
-	prompt := &survey.Select{
-		Message: "AWS 프로파일을 선택하세요:",
-		Options: options,
-	}
-
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	// UI 서비스 사용
+	promptService := ui.GetDefault()
+	selected, err := promptService.Select(context.Background(), "AWS 프로파일을 선택하세요:", options)
+	if err != nil {
 		return nil, fmt.Errorf("profile selection failed: %w", err)
 	}
 
-	// 선택된 프로파일 찾기
-	var selectedProfile AwsProfile
-	for _, p := range profiles {
-		label := p.Name
-		if p.Region != "" {
-			label = fmt.Sprintf("%s (%s)", p.Name, p.Region)
-		}
-		if label == selected {
-			selectedProfile = p
-			break
-		}
-	}
+	selectedProfile := profileMap[selected]
 
 	// aws-vault와 동일한 환경변수 설정
 	os.Setenv("AWS_ACCESS_KEY_ID", selectedProfile.AccessKey)
@@ -160,29 +149,25 @@ func (a *AwsAuth) initFromLocal() (*AwsAuth, error) {
 // 인터랙티브 초기화 (인증 정보가 없는 경우)
 func (a *AwsAuth) initInteractive() (*AwsAuth, error) {
 	LogWarning("No AWS credentials found")
-	fmt.Println("Please provide AWS credentials:")
 
-	var accessKey, secretKey, region string
+	// UI 서비스 사용
+	promptService := ui.GetDefault()
+	ctx := context.Background()
 
-	prompt := &survey.Input{
-		Message: "AWS Access Key ID:",
-	}
-	if err := survey.AskOne(prompt, &accessKey); err != nil {
+	promptService.Message(ui.MessageInfo, "Please provide AWS credentials:")
+
+	accessKey, err := promptService.Input(ctx, "AWS Access Key ID:", "")
+	if err != nil {
 		return nil, fmt.Errorf("access key input failed: %w", err)
 	}
 
-	secretPrompt := &survey.Password{
-		Message: "AWS Secret Access Key:",
-	}
-	if err := survey.AskOne(secretPrompt, &secretKey); err != nil {
+	secretKey, err := promptService.Password(ctx, "AWS Secret Access Key:")
+	if err != nil {
 		return nil, fmt.Errorf("secret key input failed: %w", err)
 	}
 
-	prompt = &survey.Input{
-		Message: "AWS Region:",
-		Default: "ap-northeast-2",
-	}
-	if err := survey.AskOne(prompt, &region); err != nil {
+	region, err := promptService.Input(ctx, "AWS Region:", "ap-northeast-2")
+	if err != nil {
 		return nil, fmt.Errorf("region input failed: %w", err)
 	}
 

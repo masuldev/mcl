@@ -16,10 +16,7 @@ var (
 		Short: "Exec `rds list` under AWS with interactive CLI",
 		Long:  "Exec `rds list` under AWS with interactive CLI",
 		Run: func(cmd *cobra.Command, args []string) {
-			var (
-				target *internal.RdsTarget
-				err    error
-			)
+			var target *internal.RdsTarget
 			ctx := context.Background()
 
 			// 전역 AWS Config 사용
@@ -43,6 +40,7 @@ var (
 			}
 
 			if target == nil {
+				var err error
 				target, err = internal.AskRdsTarget(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(err)

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
@@ -66,51 +65,9 @@ func FindCloudFrontDistribution(ctx context.Context, cfg aws.Config) (map[string
 	return table, nil
 }
 
+// Deprecated: Use app/commands/CloudFrontCommands instead
 func AskCloudFrontTarget(ctx context.Context, cfg aws.Config) (*CloudFrontTarget, error) {
-	table, err := FindCloudFrontDistribution(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	displayMap := make(map[string]*CloudFrontTarget, len(table))
-	options := make([]string, 0, len(table))
-	for _, target := range table {
-		// 대체도메인이 있으면 우선 표시, 없으면 기본 도메인 표시
-		primaryDomain := target.Domain
-		if len(target.Aliases) > 0 {
-			primaryDomain = target.Aliases[0]
-		}
-
-		// name과 id가 같으면 id만 표시
-		displayName := target.Name
-		if target.Name == target.Id {
-			displayName = target.Id
-		} else {
-			displayName = fmt.Sprintf("%s (%s)", target.Name, target.Id)
-		}
-
-		option := fmt.Sprintf("%s - %s", displayName, primaryDomain)
-		options = append(options, option)
-		displayMap[option] = target
-	}
-
-	if len(options) == 0 {
-		return nil, fmt.Errorf("CloudFront 배포를 찾을 수 없습니다")
-	}
-
-	prompt := &survey.Select{
-		Message: "CloudFront 배포를 선택하세요:",
-		Options: options,
-	}
-
-	selectKey := ""
-	if err := survey.AskOne(prompt, &selectKey, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.SelectFocus.Format = "green+hb"
-	}), survey.WithPageSize(20)); err != nil {
-		return nil, err
-	}
-
-	return displayMap[selectKey], nil
+	return nil, fmt.Errorf("AskCloudFrontTarget is deprecated, use app/commands/CloudFrontCommands instead")
 }
 
 func CreateCloudFrontInvalidation(ctx context.Context, cfg aws.Config, distributionId string) error {

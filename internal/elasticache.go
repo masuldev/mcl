@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 )
@@ -114,37 +113,9 @@ func FindElastiCacheClusterWithPaging(ctx context.Context, cfg aws.Config, page 
 	return table, nil
 }
 
+// Deprecated: Use app/commands/ElastiCacheCommands instead
 func AskElastiCacheTarget(ctx context.Context, cfg aws.Config) (*ElastiCacheTarget, error) {
-	table, err := FindElastiCacheCluster(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	displayMap := make(map[string]*ElastiCacheTarget, len(table))
-	options := make([]string, 0, len(table))
-	for _, target := range table {
-		option := fmt.Sprintf("%s (%s) - %s", target.Name, target.Id, target.Engine)
-		options = append(options, option)
-		displayMap[option] = target
-	}
-
-	if len(options) == 0 {
-		return nil, fmt.Errorf("ElastiCache 클러스터를 찾을 수 없습니다")
-	}
-
-	prompt := &survey.Select{
-		Message: "ElastiCache 클러스터를 선택하세요:",
-		Options: options,
-	}
-
-	selectKey := ""
-	if err := survey.AskOne(prompt, &selectKey, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.SelectFocus.Format = "green+hb"
-	}), survey.WithPageSize(20)); err != nil {
-		return nil, err
-	}
-
-	return displayMap[selectKey], nil
+	return nil, fmt.Errorf("AskElastiCacheTarget is deprecated, use app/commands/ElastiCacheCommands instead")
 }
 
 func PrintElastiCache(cmd, region, name, id, endpoint, status, engine string, port int32) {

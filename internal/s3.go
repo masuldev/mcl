@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -104,79 +103,6 @@ func FindS3Objects(ctx context.Context, cfg aws.Config, bucketName, prefix strin
 	}
 
 	return objects, nil
-}
-
-func AskS3Bucket(ctx context.Context, cfg aws.Config) (*S3Bucket, error) {
-	buckets, err := FindS3Buckets(ctx, cfg)
-	if err != nil {
-		return nil, WrapError(err)
-	}
-
-	if len(buckets) == 0 {
-		return nil, WrapError(fmt.Errorf("no S3 buckets found"))
-	}
-
-	displayMap := make(map[string]*S3Bucket, len(buckets))
-	options := make([]string, 0, len(buckets))
-	for _, bucket := range buckets {
-		option := fmt.Sprintf("%s (%s) - Created: %s",
-			bucket.Name,
-			bucket.Region,
-			bucket.CreationDate.Format("2006-01-02 15:04:05"))
-		options = append(options, option)
-		displayMap[option] = bucket
-	}
-
-	var selectKey string
-	prompt := &survey.Select{
-		Message: "Choose a S3 bucket:",
-		Options: options,
-	}
-
-	if err := survey.AskOne(prompt, &selectKey, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.SelectFocus.Format = "green+hb"
-	}), survey.WithPageSize(20)); err != nil {
-		return nil, WrapError(err)
-	}
-
-	return displayMap[selectKey], nil
-}
-
-func AskS3Object(ctx context.Context, cfg aws.Config, bucketName string, prefix string) (*S3Object, error) {
-	objects, err := FindS3Objects(ctx, cfg, bucketName, prefix)
-	if err != nil {
-		return nil, WrapError(err)
-	}
-
-	if len(objects) == 0 {
-		return nil, WrapError(fmt.Errorf("no objects found in bucket %s with prefix %s", bucketName, prefix))
-	}
-
-	displayMap := make(map[string]*S3Object, len(objects))
-	options := make([]string, 0, len(objects))
-	for _, object := range objects {
-		sizeStr := FormatBytes(object.Size)
-		option := fmt.Sprintf("%s (%s) - %s",
-			object.Key,
-			sizeStr,
-			object.LastModified.Format("2006-01-02 15:04:05"))
-		options = append(options, option)
-		displayMap[option] = object
-	}
-
-	var selectKey string
-	prompt := &survey.Select{
-		Message: "Choose a S3 object:",
-		Options: options,
-	}
-
-	if err := survey.AskOne(prompt, &selectKey, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.SelectFocus.Format = "green+hb"
-	}), survey.WithPageSize(20)); err != nil {
-		return nil, WrapError(err)
-	}
-
-	return displayMap[selectKey], nil
 }
 
 func FormatBytes(bytes int64) string {

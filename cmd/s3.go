@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/masuldev/mcl/internal"
@@ -15,17 +16,21 @@ var (
 		Short: "Exec `s3 list` under AWS with interactive CLI",
 		Long:  "Exec `s3 list` under AWS with interactive CLI",
 		Run: func(cmd *cobra.Command, args []string) {
-			var (
-				bucket *internal.S3Bucket
-				object *internal.S3Object
-				err    error
-			)
 			ctx := context.Background()
+
+			// 전역 AWS Config 사용
+			awsConfig := GetGlobalAwsConfig()
+			if awsConfig == nil {
+				internal.RealPanic(fmt.Errorf("AWS config not initialized"))
+			}
+
+			var bucket *internal.S3Bucket
+			var object *internal.S3Object
 
 			// 버킷 선택
 			argBucket := strings.TrimSpace(viper.GetString("s3-bucket"))
 			if argBucket != "" {
-				buckets, err := internal.FindS3Buckets(ctx, *credential.awsConfig)
+				buckets, err := internal.FindS3Buckets(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(internal.WrapError(err))
 				}
@@ -38,7 +43,8 @@ var (
 			}
 
 			if bucket == nil {
-				bucket, err = internal.AskS3Bucket(ctx, *credential.awsConfig)
+				var err error
+				bucket, err = internal.AskS3Bucket(ctx, *awsConfig)
 				if err != nil {
 					internal.RealPanic(err)
 				}
@@ -49,7 +55,7 @@ var (
 			argPrefix := strings.TrimSpace(viper.GetString("s3-prefix"))
 
 			if argObject != "" {
-				objects, err := internal.FindS3Objects(ctx, *credential.awsConfig, bucket.Name, argPrefix)
+				objects, err := internal.FindS3Objects(ctx, *awsConfig, bucket.Name, argPrefix)
 				if err != nil {
 					internal.RealPanic(internal.WrapError(err))
 				}
@@ -60,7 +66,8 @@ var (
 					}
 				}
 			} else if viper.GetBool("s3-list-objects") {
-				object, err = internal.AskS3Object(ctx, *credential.awsConfig, bucket.Name, argPrefix)
+				var err error
+				object, err = internal.AskS3Object(ctx, *awsConfig, bucket.Name, argPrefix)
 				if err != nil {
 					internal.RealPanic(err)
 				}
@@ -68,10 +75,10 @@ var (
 
 			// 결과 출력
 			if object != nil {
-				internal.PrintS3Object("s3", credential.awsConfig.Region, bucket.Name, object.Key,
+				internal.PrintS3Object("s3", awsConfig.Region, bucket.Name, object.Key,
 					internal.FormatBytes(object.Size), object.LastModified.Format("2006-01-02 15:04:05"))
 			} else {
-				internal.PrintS3Bucket("s3", credential.awsConfig.Region, bucket.Name,
+				internal.PrintS3Bucket("s3", awsConfig.Region, bucket.Name,
 					bucket.CreationDate.Format("2006-01-02 15:04:05"))
 			}
 		},
